@@ -1,6 +1,14 @@
 import { createReading, listReadings } from "../dao/readingsDao.js";
+import { getSensorControl } from "../dao/sensorControlsDao.js";
+import { createAlert } from "../dao/alertsDao.js";
 
 const VALID_SENSOR_TYPES = ["temperature", "humidity", "light"];
+
+const DEFAULT_THRESHOLDS = {
+  temperature: { min: 10, max: 35 },
+  humidity:    { min: 20, max: 65 },
+  light:       { min: 0,  max: 5  },
+};
 
 export async function postReading(req, res) {
   const { deviceId, timestamp, ...sensorFields } = req.body;
@@ -29,6 +37,27 @@ export async function postReading(req, res) {
   }
 
   const reading = await createReading({ deviceId, timestamp, [sensorType]: value });
+
+  // ── Alert check ──────────────────────────────────────────────────────────
+  const control = await getSensorControl(deviceId, sensorType);
+
+  if (!control || control.isEnabled) {
+    const threshMin = control?.thresholdMin ?? DEFAULT_THRESHOLDS[sensorType]?.min;
+    const threshMax = control?.thresholdMax ?? DEFAULT_THRESHOLDS[sensorType]?.max;
+
+    if (threshMin !== undefined && threshMax !== undefined) {
+      if (value < threshMin || value > threshMax) {
+        const direction = value < threshMin ? "below minimum" : "above maximum";
+        const threshold = value < threshMin ? threshMin : threshMax;
+        await createAlert({
+          deviceId,
+          sensorType,
+          message: `${sensorType} value ${value} is ${direction} threshold (${threshold})`,
+        });
+      }
+    }
+  }
+
   res.status(201).json(reading);
 }
 
