@@ -25,10 +25,10 @@ function generateReadings(sensorType, count, intervalMinutes = 1) {
     }
     readings.push({
       id: count - i + 1,
-      sensor_type: sensorType,
+      sensorType,
       value: v,
       unit: cfg.unit,
-      recorded_at: new Date(now - i * intervalMinutes * 60_000).toISOString(),
+      recordedAt: new Date(now - i * intervalMinutes * 60_000).toISOString(),
     });
   }
   return readings;
@@ -55,7 +55,7 @@ export async function getAllSensorReadings(limit = 150) {
     all.push(...generateReadings(type, Math.ceil(limit / 3), 1));
   }
   return all.sort(
-    (a, b) => new Date(b.recorded_at) - new Date(a.recorded_at),
+    (a, b) => new Date(b.recordedAt) - new Date(a.recordedAt),
   );
 }
 
@@ -93,10 +93,10 @@ export async function getReadingsByDateRange(sensorType, from, to) {
       );
     }
     readings.push({
-      sensor_type: sensorType,
+      sensorType,
       value: v,
       unit: cfg.unit,
-      recorded_at: new Date(t).toISOString(),
+      recordedAt: new Date(t).toISOString(),
     });
     t += intervalMinutes * 60_000;
   }
@@ -104,11 +104,11 @@ export async function getReadingsByDateRange(sensorType, from, to) {
 }
 
 export async function getProtectionStatus(_deviceId = 1) {
-  return { is_enabled: true };
+  return { isEnabled: true };
 }
 
 export async function toggleProtection(_deviceId = 1, isEnabled) {
-  return { is_enabled: isEnabled };
+  return { isEnabled: isEnabled };
 }
 
 export async function login(email, password) {

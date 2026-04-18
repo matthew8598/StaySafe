@@ -36,7 +36,7 @@ function nextValue(sensorType) {
  * Starts the Arduino mock. Cycles through sensor types on each tick and POSTs
  * a reading to the backend just as a real Arduino would.
  *
- * @param {number} deviceId   - The device_id assigned to this mock Arduino
+ * @param {number} deviceId   - The deviceId assigned to this mock Arduino
  * @param {number} intervalMs - How often to send a reading (ms). Default 5 000.
  * @returns {() => void}      - Call the returned function to stop the mock.
  */

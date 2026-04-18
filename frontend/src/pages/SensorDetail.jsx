@@ -141,7 +141,7 @@ export default function SensorDetail() {
     : '—';
 
   const chartData = readings.map(r => ({
-    time: formatTime(r.recorded_at),
+    time: formatTime(r.recordedAt),
     value: r.value,
   }));
 
@@ -355,7 +355,7 @@ export default function SensorDetail() {
                 const s = getSensorStatus(type, r.value);
                 return (
                   <tr key={i}>
-                    <td className="td-mono">{formatDateTime(r.recorded_at)}</td>
+                    <td className="td-mono">{formatDateTime(r.recordedAt)}</td>
                     <td className="td-mono" style={{ color: cfg.color }}>
                       {parseFloat(r.value).toFixed(1)} {cfg.unit}
                     </td>

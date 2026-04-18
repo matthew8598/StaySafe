@@ -3,18 +3,6 @@ import { SENSOR_CONFIG } from "./shared.js";
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 const DEFAULT_DEVICE_ID = Number(import.meta.env.VITE_DEFAULT_DEVICE_ID) || 1;
 
-// Map camelCase backend response to snake_case shape used by all components
-function mapReading(r) {
-  return {
-    id: r.id,
-    device_id: r.deviceId,
-    sensor_type: r.sensorType,
-    value: parseFloat(r.value),
-    unit: r.unit,
-    recorded_at: r.recordedAt,
-  };
-}
-
 async function fetchReadings(params) {
   const qs = new URLSearchParams(params).toString();
   const res = await fetch(`${BASE_URL}/readings?${qs}`);
@@ -31,7 +19,7 @@ export async function getRecentReadings(sensorType, count = 10) {
     limit: count,
   });
   // backend returns DESC; reverse to oldest-first for charts
-  return rows.map(mapReading).reverse();
+  return rows.map(r => ({ ...r, value: parseFloat(r.value) })).reverse();
 }
 
 export async function getHistoryReadings(
@@ -50,7 +38,7 @@ export async function getAllSensorReadings(limit = 150) {
     deviceId: DEFAULT_DEVICE_ID,
     limit,
   });
-  return rows.map(mapReading);
+  return rows.map(r => ({ ...r, value: parseFloat(r.value) }));
 }
 
 export async function getReadingsByDateRange(sensorType, from, to) {
@@ -61,17 +49,17 @@ export async function getReadingsByDateRange(sensorType, from, to) {
     to: new Date(to).toISOString(),
   });
   // already ordered DESC from backend; reverse to oldest-first for charts
-  return rows.map(mapReading).reverse();
+  return rows.map(r => ({ ...r, value: parseFloat(r.value) })).reverse();
 }
 
 // ─── Protection — no backend endpoint yet, stub until devices route exists ────
 
 export async function getProtectionStatus(_deviceId = 1) {
-  return { is_enabled: true };
+  return { isEnabled: true };
 }
 
 export async function toggleProtection(_deviceId = 1, isEnabled) {
-  return { is_enabled: isEnabled };
+  return { isEnabled: isEnabled };
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
