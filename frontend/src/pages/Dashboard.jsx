@@ -50,7 +50,7 @@ export default function Dashboard() {
         humidity: processReadings(humReadings, 'humidity'),
         light: processReadings(lightReadings, 'light'),
       });
-      setProtection(protStatus.is_enabled);
+      setProtection(protStatus.isEnabled);
       setLoading(false);
     }
 

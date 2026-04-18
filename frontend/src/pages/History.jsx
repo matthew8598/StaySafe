@@ -93,11 +93,11 @@ function SensorHistoryChart({ type }) {
       if (!mounted) return;
 
       const spanMin = readings.length > 1
-        ? (new Date(readings[readings.length - 1].recorded_at) - new Date(readings[0].recorded_at)) / 60_000
+        ? (new Date(readings[readings.length - 1].recordedAt) - new Date(readings[0].recordedAt)) / 60_000
         : 0;
 
       setChartData(readings.map(r => ({
-        time: spanMin > 1440 ? formatDateShort(r.recorded_at) : formatTime(r.recorded_at),
+        time: spanMin > 1440 ? formatDateShort(r.recordedAt) : formatTime(r.recordedAt),
         value: r.value,
       })));
       setLoading(false);
@@ -310,17 +310,17 @@ export default function History() {
 
   const filtered = filter === 'all'
     ? readings
-    : readings.filter(r => r.sensor_type === filter);
+    : readings.filter(r => r.sensorType === filter);
 
   const counts = {
     all: readings.length,
-    temperature: readings.filter(r => r.sensor_type === 'temperature').length,
-    humidity: readings.filter(r => r.sensor_type === 'humidity').length,
-    light: readings.filter(r => r.sensor_type === 'light').length,
+    temperature: readings.filter(r => r.sensorType === 'temperature').length,
+    humidity: readings.filter(r => r.sensorType === 'humidity').length,
+    light: readings.filter(r => r.sensorType === 'light').length,
   };
 
   const alertCount = readings.filter(
-    r => getSensorStatus(r.sensor_type, r.value) === 'alert'
+    r => getSensorStatus(r.sensorType, r.value) === 'alert'
   ).length;
 
   return (
@@ -341,7 +341,7 @@ export default function History() {
       <div className="history-summary">
         {['temperature', 'humidity', 'light'].map(type => {
           const cfg = SENSOR_CONFIG[type];
-          const typeReadings = readings.filter(r => r.sensor_type === type);
+          const typeReadings = readings.filter(r => r.sensorType === type);
           const alerts = typeReadings.filter(
             r => getSensorStatus(type, r.value) === 'alert'
           ).length;
@@ -409,17 +409,17 @@ export default function History() {
             </thead>
             <tbody>
               {filtered.slice(0, 100).map((r, i) => {
-                const cfg = SENSOR_CONFIG[r.sensor_type];
-                const s = getSensorStatus(r.sensor_type, r.value);
+                const cfg = SENSOR_CONFIG[r.sensorType];
+                const s = getSensorStatus(r.sensorType, r.value);
                 return (
                   <tr key={i}>
-                    <td className="td-mono">{formatDateTime(r.recorded_at)}</td>
+                    <td className="td-mono">{formatDateTime(r.recordedAt)}</td>
                     <td>
                       <span
                         className="sensor-pill"
                         style={{ color: cfg?.color, background: `${cfg?.color}1a` }}
                       >
-                        {cfg?.label ?? r.sensor_type}
+                        {cfg?.label ?? r.sensorType}
                       </span>
                     </td>
                     <td className="td-mono" style={{ color: cfg?.color }}>
