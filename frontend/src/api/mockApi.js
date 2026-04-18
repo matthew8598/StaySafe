@@ -111,6 +111,22 @@ export async function toggleProtection(_deviceId = 1, isEnabled) {
   return { isEnabled: isEnabled };
 }
 
+const _mockSensorEnabled = { temperature: true, humidity: true, light: true };
+
+export async function getSensorControls(_deviceId = 1) {
+  return Object.entries(_mockSensorEnabled).map(([sensorType, isEnabled]) => ({
+    sensorType,
+    isEnabled,
+    thresholdMin: null,
+    thresholdMax: null,
+  }));
+}
+
+export async function toggleSensorEnabled(sensorType, isEnabled) {
+  _mockSensorEnabled[sensorType] = isEnabled;
+  return { sensorType, isEnabled };
+}
+
 export async function login(email, password) {
   if (email === MOCK_USER.email && password === MOCK_USER.password) {
     return {

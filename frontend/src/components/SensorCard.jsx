@@ -27,7 +27,7 @@ const SENSOR_ICONS = {
   ),
 };
 
-export default function SensorCard({ type, data, onClick }) {
+export default function SensorCard({ type, data, enabled = true, onToggleEnabled, onClick }) {
   const cfg = SENSOR_CONFIG[type];
   const { readings, current, status } = data;
   const isOk = status === 'ok';
@@ -39,9 +39,14 @@ export default function SensorCard({ type, data, onClick }) {
     }
   }
 
+  function handleToggle(e) {
+    e.stopPropagation();
+    onToggleEnabled?.(!enabled);
+  }
+
   return (
     <div
-      className={`sensor-card sensor-card--${status}`}
+      className={`sensor-card sensor-card--${status}${!enabled ? ' sensor-card--disabled' : ''}`}
       onClick={onClick}
       onKeyDown={handleKeyDown}
       role="button"
@@ -53,6 +58,16 @@ export default function SensorCard({ type, data, onClick }) {
           {SENSOR_ICONS[type]}
         </div>
         <span className="sensor-card__name">{cfg.label}</span>
+        <button
+          className={`toggle toggle--sm ${enabled ? 'toggle--on' : 'toggle--off'}`}
+          onClick={handleToggle}
+          role="switch"
+          aria-checked={enabled}
+          aria-label={enabled ? `Disable ${cfg.label} sensor` : `Enable ${cfg.label} sensor`}
+          title={enabled ? 'Sensor enabled' : 'Sensor disabled'}
+        >
+          <span className="toggle__thumb" />
+        </button>
         <span
           className={`status-dot status-dot--${status}`}
           title={isOk ? 'Normal' : 'Alert'}

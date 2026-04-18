@@ -3,12 +3,15 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { MOCK_USER } from "../api/api";
 
+const ARDUINO_MOCK_ACTIVE = import.meta.env.VITE_MOCK_ARDUINO === "true";
+const USE_MOCK = !ARDUINO_MOCK_ACTIVE && import.meta.env.VITE_USE_MOCK_API !== "false";
+
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(USE_MOCK ? MOCK_USER.email : "");
+  const [password, setPassword] = useState(USE_MOCK ? MOCK_USER.password : "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -48,10 +51,11 @@ export default function Login() {
         <h1 className="auth-title">Welcome back</h1>
         <p className="auth-subtitle">Sign in to your account</p>
 
-        <div className="auth-mock-notice">
-          Mock credentials pre-filled — click <strong>Sign in</strong> to
-          continue
-        </div>
+        {USE_MOCK && (
+          <div className="auth-mock-notice">
+            Mock mode — credentials pre-filled ({MOCK_USER.email} / {MOCK_USER.password})
+          </div>
+        )}
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="form-field">

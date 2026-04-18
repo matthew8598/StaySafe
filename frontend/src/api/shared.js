@@ -33,7 +33,7 @@ export const SENSOR_CONFIG = {
 // ─── Mock user (dev only) ─────────────────────────────────────────────────────
 
 export const MOCK_USER = {
-  id: 1,
+  id: 2,
   username: "admin",
   email: "admin@staysafe.local",
   password: "staysafe123",

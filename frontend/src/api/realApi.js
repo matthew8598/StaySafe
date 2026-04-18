@@ -62,6 +62,24 @@ export async function toggleProtection(_deviceId = 1, isEnabled) {
   return { isEnabled: isEnabled };
 }
 
+// ─── Sensor controls ─────────────────────────────────────────────────────────
+
+export async function getSensorControls(deviceId = DEFAULT_DEVICE_ID) {
+  const res = await fetch(`${BASE_URL}/controls?deviceId=${deviceId}`);
+  if (!res.ok) throw new Error(`Failed to fetch controls: ${res.status}`);
+  return res.json();
+}
+
+export async function toggleSensorEnabled(sensorType, isEnabled, deviceId = DEFAULT_DEVICE_ID) {
+  const res = await fetch(`${BASE_URL}/controls/${deviceId}/${sensorType}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ isEnabled }),
+  });
+  if (!res.ok) throw new Error(`Failed to update control: ${res.status}`);
+  return res.json();
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export async function login(email, password) {

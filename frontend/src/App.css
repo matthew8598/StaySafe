@@ -203,6 +203,53 @@
   flex-wrap: wrap;
   gap: 16px;
 }
+.dashboard-header__controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+/* ─── Poll rate selector ─────────────────────────────────────────────────── */
+.poll-rate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.poll-rate__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.poll-rate__group {
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.poll-rate__btn {
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.poll-rate__btn:last-child {
+  border-right: none;
+}
+.poll-rate__btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.poll-rate__btn--active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
 .sensor-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -412,6 +459,23 @@
 }
 .toggle--on  .toggle__thumb { left: 25px; }
 .toggle--off .toggle__thumb { left: 3px; }
+/* Small toggle variant for sensor cards */
+.toggle--sm {
+  width: 34px;
+  height: 19px;
+  border-radius: 10px;
+}
+.toggle--sm .toggle__thumb {
+  width: 13px;
+  height: 13px;
+  top: 3px;
+}
+.toggle--sm.toggle--on  .toggle__thumb { left: 18px; }
+.toggle--sm.toggle--off .toggle__thumb { left: 3px; }
+/* Disabled sensor card */
+.sensor-card--disabled {
+  opacity: 0.55;
+}
 /* ─── Loading states ─────────────────────────────────────────────────────── */
 .page-loading,
 .chart-loading {
