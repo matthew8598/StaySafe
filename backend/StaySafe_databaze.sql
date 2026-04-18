@@ -78,12 +78,14 @@ CREATE TABLE alerts (
 /*5. SENSOR_CONTROLS*/
 
 CREATE TABLE sensor_controls (
-    id            INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-    device_id     INT UNSIGNED    NOT NULL,
-    user_id       INT UNSIGNED    NOT NULL,
-    sensor_type   ENUM('temperature', 'humidity', 'light', 'all') NOT NULL,
-    is_enabled    TINYINT(1)      NOT NULL DEFAULT 1,      
-    changed_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id             INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+    device_id      INT UNSIGNED    NOT NULL,
+    user_id        INT UNSIGNED    NOT NULL,
+    sensor_type    ENUM('temperature', 'humidity', 'light', 'all') NOT NULL,
+    is_enabled     TINYINT(1)      NOT NULL DEFAULT 1,
+    threshold_min  DECIMAL(8,2)    NULL DEFAULT NULL,
+    threshold_max  DECIMAL(8,2)    NULL DEFAULT NULL,
+    changed_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     CONSTRAINT fk_controls_device
         FOREIGN KEY (device_id) REFERENCES devices (id)
@@ -91,6 +93,11 @@ CREATE TABLE sensor_controls (
     CONSTRAINT fk_controls_user
         FOREIGN KEY (user_id) REFERENCES users (id)
         ON DELETE CASCADE ON UPDATE CASCADE,
+    UNIQUE KEY uq_controls_device_sensor (device_id, sensor_type),
     INDEX idx_controls_device (device_id, sensor_type)
 );
-3
+
+/* Migration for existing databases (skip lines that cause "Duplicate key" errors) */
+-- ALTER TABLE sensor_controls ADD COLUMN threshold_min DECIMAL(8,2) NULL DEFAULT NULL AFTER is_enabled;
+-- ALTER TABLE sensor_controls ADD COLUMN threshold_max DECIMAL(8,2) NULL DEFAULT NULL AFTER threshold_min;
+-- ALTER TABLE sensor_controls ADD UNIQUE KEY uq_controls_device_sensor (device_id, sensor_type); -- skip if key already exists

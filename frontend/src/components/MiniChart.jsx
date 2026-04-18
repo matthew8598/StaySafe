@@ -28,7 +28,7 @@ export default function MiniChart({ data, color, unit, gradId, thresholds }) {
   }
 
   const chartData = data.map(r => ({
-    time: formatTime(r.recorded_at),
+    time: formatTime(r.recordedAt),
     value: r.value,
   }));
 
