@@ -10,6 +10,9 @@ const pool = new Pool({
   port: process.env.DB_PORT,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 
 // Convert ?-style placeholders to PostgreSQL $n positional params
