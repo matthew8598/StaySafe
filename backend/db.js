@@ -184,4 +184,61 @@ export async function dbUpsertSensorControl(deviceId, userId, sensorType, isEnab
   return result;
 }
 
+//devices
+ 
+export async function dbInsertDevice(userId, name, location) {
+  const result = await pool.query(
+    `INSERT INTO devices (user_id, name, location, is_active)
+     VALUES ($1, $2, $3, true)
+     RETURNING id`,
+    [userId, name, location ?? null],
+  );
+  return result.rows[0].id;
+}
+ 
+export async function dbSelectAllDevices() {
+  const result = await pool.query(
+    `SELECT id, user_id, name, location, is_active, created_at, updated_at FROM devices
+     ORDER BY created_at DESC`,
+  );
+  return result.rows;
+}
+ 
+export async function dbSelectDevicesByUserId(userId) {
+  const result = await pool.query(
+    `SELECT id, user_id, name, location, is_active, created_at, updated_at FROM devices
+     WHERE user_id = $1
+     ORDER BY created_at DESC`,
+    [userId],
+  );
+  return result.rows;
+}
+ 
+export async function dbSelectDeviceById(id) {
+  const result = await pool.query(
+    `SELECT id, user_id, name, location, is_active, created_at, updated_at FROM devices
+     WHERE id = $1`,
+    [id],
+  );
+  return result.rows[0] ?? null;
+}
+ 
+export async function dbUpdateDevice(id, name, location, isActive) {
+  const result = await pool.query(
+    `UPDATE devices
+     SET name = $1, location = $2, is_active = $3, updated_at = NOW()
+     WHERE id = $4`,
+    [name, location ?? null, isActive, id],
+  );
+  return result.rowCount > 0;
+}
+ 
+export async function dbDeleteDevice(id) {
+  const result = await pool.query(
+    `DELETE FROM devices WHERE id = $1`,
+    [id],
+  );
+  return result.rowCount > 0;
+}
+ 
 export default pool;
