@@ -1,0 +1,5 @@
+Host ep-winter-king-amemocph.c-5.us-east-1.aws.neon.tech
+Database neondb
+Role neondb_owner
+Password ************
+Pooler host ep-winter-king-amemocph-pooler.c-5.us-east-1.aws.neon.tech
