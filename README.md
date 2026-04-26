@@ -1,6 +1,6 @@
 # StaySafe
 
-Inteligentní systém pro monitorování a řízení domácího prostředí pomocí Arduino R4 WIFI.
+Inteligentní systém pro monitorování bezpečnosti vašeho trezoru pomocí teplotných senzorů.
 
 ## Přehled projektu
 
@@ -26,15 +26,12 @@ Arduino R4 WIFI
       ↓
   PostgreSQL
       ↓
-Frontend Dashboard (React)
-      ← GET /api/readings
-      → POST /api/controls
+  Frontend Dashboard (React)
 ```
 
 ## Databáze
 
-- **Lokálně:** PostgreSQL 15
-- **Cloud:** Neon (https://neon.tech)
+- **Cloud:** PostgreSQL 15 nasazená na Neon (https://neon.tech)
 
 Viz [Backend README](./backend/README.md) pro setup.
 
