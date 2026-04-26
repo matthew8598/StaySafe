@@ -10,34 +10,10 @@ StaySafe se skládá ze tří částí:
 2. **Frontend** (React + Vite) — Dashboard pro vizualizaci a kontrolu
 3. **Arduino firmware** — Firmware pro Arduino R4 WIFI desku
 
-## Rychlý start pro vývojáře
-
-### Backend
-
-Jdi do `backend/` složky a následuj [Backend README](./backend/README.md)
-
-```bash
-cd backend
-npm install
-npm start  # Server běží na http://localhost:3000
-```
 
 **Požadavky:**
 - Node.js 16+
 - PostgreSQL 15+
-
-### Frontend
-
-Jdi do `frontend/` složky a následuj [Frontend README](./frontend/README.md)
-
-```bash
-cd frontend
-npm install
-npm run dev  # Dev server na http://localhost:5173
-```
-
-**Požadavky:**
-- Node.js 16+
 
 ## Architektura
 
@@ -72,25 +48,6 @@ PATCH  /api/controls/:deviceId/:type    # Změnit prahy
 GET    /api/alerts                      # Upozornění
 DELETE /api/alerts/:id                  # Smazat upozornění
 GET    /api/users                       # Správa uživatelů
-```
-
-## Struktura složek
-
-```
-StaySafe/
-├── backend/              # Express API
-│   ├── routes/
-│   ├── controllers/
-│   ├── dao/
-│   ├── .env              # Config (v .gitignore)
-│   ├── README.md         # Backend setup
-│   └── package.json
-├── frontend/             # React app
-│   ├── src/
-│   ├── public/
-│   ├── README.md
-│   └── package.json
-└── README.md             # Tento soubor
 ```
 
 ## Vývojový workflow
