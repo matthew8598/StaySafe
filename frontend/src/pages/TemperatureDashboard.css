@@ -1,0 +1,192 @@
+.temp-dashboard {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 40px 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* Velké číslo uprostred */
+.temp-display {
+  text-align: center;
+  margin-bottom: 60px;
+  animation: fadeIn 0.5s ease-in;
+  width: 100%;
+  max-width: 1000px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.temp-value {
+  font-size: 120px;
+  font-weight: 700;
+  color: white;
+  line-height: 1;
+  margin-bottom: 20px;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  letter-spacing: -2px;
+}
+
+.temp-unit {
+  font-size: 60px;
+  margin-left: 10px;
+  opacity: 0.9;
+}
+
+.temp-label {
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.temp-timestamp {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Tabulka s historií */
+.temp-table-container {
+  width: 100%;
+  max-width: 1000px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 600px;
+  margin: 0 auto;
+}
+
+.temp-table-container h2 {
+  padding: 20px;
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+  border-bottom: 2px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.temp-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.temp-table thead {
+  background: #f5f5f5;
+  position: sticky;
+  top: 0;
+}
+
+.temp-table th {
+  padding: 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #666;
+  font-size: 14px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.temp-table tbody {
+  display: block;
+  overflow-y: auto;
+  max-height: calc(600px - 100px); /* Odpočítej header */
+}
+
+.temp-table tbody tr {
+  display: table;
+  width: 100%;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s;
+}
+
+.temp-table tbody tr:hover {
+  background-color: #f9f9f9;
+}
+
+.temp-table td {
+  padding: 14px 16px;
+  font-size: 14px;
+  color: #333;
+}
+
+.temp-time {
+  color: #666;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  width: 45%;
+}
+
+.temp-value-cell {
+  font-weight: 600;
+  color: #667eea;
+  width: 55%;
+  text-align: right;
+}
+
+/* Loading a Error stavy */
+.temp-loading,
+.temp-error {
+  color: white;
+  font-size: 18px;
+  text-align: center;
+  padding: 40px;
+}
+
+.temp-error {
+  background: rgba(220, 53, 69, 0.8);
+  border-radius: 8px;
+  margin-top: 40px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .temp-value {
+    font-size: 80px;
+  }
+
+  .temp-unit {
+    font-size: 40px;
+  }
+
+  .temp-label {
+    font-size: 18px;
+  }
+
+  .temp-table-container {
+    max-width: 100%;
+    max-height: 500px;
+  }
+
+  .temp-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 8px 0;
+  }
+
+  .temp-time {
+    width: 100%;
+    padding: 8px 16px;
+  }
+
+  .temp-value-cell {
+    width: 100%;
+    text-align: left;
+    padding: 8px 16px;
+  }
+}
