@@ -5,6 +5,7 @@ import alertRoutes from "./routes/alertRoutes.js";
 import readingsRoutes from "./routes/readingsRoutes.js";
 import sensorControlsRoutes from "./routes/sensorControlsRoutes.js";
 import deviceRoutes from "./routes/devices.js";
+import "./mdns-publish.js";  // Publish service via mDNS (Bonjour)
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,4 +25,6 @@ app.get("/", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`\n🔌 Arduino can connect to: staysafe.local:${PORT}`);
+  console.log(`📡 mDNS/Bonjour service is being published...\n`);
 });

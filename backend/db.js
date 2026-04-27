@@ -1,6 +1,9 @@
 import pg from "pg";
 import dotenv from "dotenv";
-dotenv.config();
+
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
+dotenv.config({ path: envFile });
+dotenv.config({ path: '.env' });
 
 const { Pool } = pg;
 
@@ -10,9 +13,7 @@ const pool = new Pool({
   port: process.env.DB_PORT,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
 });
 
 // Convert ?-style placeholders to PostgreSQL $n positional params
