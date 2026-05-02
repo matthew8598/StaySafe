@@ -7,11 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-
-function formatTime(iso) {
-  const d = new Date(iso);
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-}
+import { formatTime } from '../utils/dateTime';
 
 function MiniTooltip({ active, payload, unit }) {
   if (!active || !payload?.length) return null;

@@ -22,5 +22,10 @@ export const getProtectionStatus  = (...args) => impl.getProtectionStatus(...arg
 export const toggleProtection     = (...args) => impl.toggleProtection(...args);
 export const getSensorControls    = (...args) => impl.getSensorControls(...args);
 export const toggleSensorEnabled  = (...args) => impl.toggleSensorEnabled(...args);
+export const setSensorThresholds  = (...args) => impl.setSensorThresholds(...args);
 export const login                = (...args) => impl.login(...args);
 export const register             = (...args) => impl.register(...args);
+export const getDevices           = (...args) => impl.getDevices(...args);
+export const createDevice         = (...args) => impl.createDevice(...args);
+export const getAlerts            = (...args) => impl.getAlerts(...args);
+export const resolveAlert         = (...args) => impl.resolveAlert(...args);

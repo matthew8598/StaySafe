@@ -3,6 +3,7 @@ import {
   dbSelectAlerts,
   dbSelectAlertById,
   dbDeleteAlert,
+  dbMarkAlertAsRead,
 } from "../db.js";
 
 export async function createAlert(alert) {
@@ -25,7 +26,22 @@ export async function listAlerts(filters = {}) {
     values.push(filters.sensorType);
   }
 
-  const rows = await dbSelectAlerts(conditions, values);
+  if (typeof filters.isRead === "boolean") {
+    conditions.push("is_read = ?");
+    values.push(filters.isRead);
+  }
+
+  if (filters.from) {
+    conditions.push("triggered_at >= ?");
+    values.push(new Date(filters.from));
+  }
+
+  if (filters.to) {
+    conditions.push("triggered_at <= ?");
+    values.push(new Date(filters.to));
+  }
+
+  const rows = await dbSelectAlerts(conditions, values, filters.limit ?? null);
   return rows.map(mapAlert);
 }
 
@@ -38,6 +54,12 @@ export async function removeAlert(id) {
   return dbDeleteAlert(id);
 }
 
+export async function resolveAlert(id) {
+  const updated = await dbMarkAlertAsRead(id);
+  if (!updated) return null;
+  return getAlertById(id);
+}
+
 function mapAlert(row) {
   return {
     id: row.id,
@@ -45,5 +67,6 @@ function mapAlert(row) {
     sensorType: row.sensor_type,
     message: row.message,
     triggeredAt: row.triggered_at,
+    isRead: row.is_read,
   };
 }

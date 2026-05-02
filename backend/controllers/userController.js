@@ -9,6 +9,7 @@ import {
   getUserByUsername,
 } from "../dao/userDao.js";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 // POST /api/users (Registrace)
 export async function createUserController(req, res) {
@@ -84,6 +85,11 @@ export async function getUserByIdController(req, res) {
 export async function updateUserController(req, res) {
   try {
     const { id } = req.params;
+
+    if (req.user.id !== Number(id)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
     const { username, email } = req.body;
 
     if (!username || !email) {
@@ -115,6 +121,11 @@ export async function updateUserController(req, res) {
 export async function updateUserPasswordController(req, res) {
   try {
     const { id } = req.params;
+
+    if (req.user.id !== Number(id)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
     const { password } = req.body;
 
     if (!password) {
@@ -146,6 +157,10 @@ export async function updateUserPasswordController(req, res) {
 export async function deleteUserController(req, res) {
   try {
     const { id } = req.params;
+
+    if (req.user.id !== Number(id)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
 
     const deleted = await deleteUser(id);
 
@@ -198,6 +213,13 @@ export async function login(req, res) {
       });
     }
 
+    // issue JWT
+    const token = jwt.sign(
+      { sub: user.id, username: user.username },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
     // úspěch
     return res.status(200).json({
       message: "Login successful",
@@ -206,7 +228,7 @@ export async function login(req, res) {
         username: user.username,
         email: user.email,
       },
-      token: null,
+      token,
     });
   } catch (error) {
     console.error("LOGIN ERROR:", error);

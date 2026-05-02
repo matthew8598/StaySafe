@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import './TemperatureDashboard.css';
+import { getRecentReadings } from '../api/api';
 
-const API_BASE = 'http://localhost:3000';
-const DEVICE_ID = 1;
 const REFRESH_INTERVAL = 5000; // 5 sekund
 
 export default function TemperatureDashboard() {
@@ -17,21 +16,10 @@ export default function TemperatureDashboard() {
       try {
         setError(null);
 
-        // Načítej všechna měření
-        const response = await fetch(
-          `${API_BASE}/api/readings?deviceId=${DEVICE_ID}&limit=100&sensorType=temperature`
-        );
+        const data = await getRecentReadings('temperature', 100);
 
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        // Seřaď by čase (nejnovější prvně)
-        const sorted = Array.isArray(data)
-          ? data.sort((a, b) => new Date(b.recordedAt) - new Date(a.recordedAt))
-          : [];
+        // getRecentReadings returns oldest-first; reverse for newest-first display
+        const sorted = [...data].reverse();
 
         setReadings(sorted);
         setCurrentTemp(sorted.length > 0 ? parseFloat(sorted[0].value) : null);
