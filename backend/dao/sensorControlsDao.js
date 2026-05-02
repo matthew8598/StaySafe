@@ -5,12 +5,16 @@ import {
 } from "../db.js";
 
 function mapControl(row) {
+  const isEnabled = typeof row.is_enabled === "boolean"
+    ? row.is_enabled
+    : row.is_enabled === 1;
+
   return {
     id: row.id,
     deviceId: row.device_id,
     userId: row.user_id,
     sensorType: row.sensor_type,
-    isEnabled: row.is_enabled === 1,
+    isEnabled,
     thresholdMin: row.threshold_min !== null ? parseFloat(row.threshold_min) : null,
     thresholdMax: row.threshold_max !== null ? parseFloat(row.threshold_max) : null,
     changedAt: row.changed_at,

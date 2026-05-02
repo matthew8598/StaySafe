@@ -52,7 +52,12 @@ export async function listReadings(filters = {}) {
     values.push(new Date(filters.to));
   }
 
-  const rows = await dbSelectReadings(conditions, values, filters.limit ?? null);
+  const rows = await dbSelectReadings(
+    conditions,
+    values,
+    filters.limit ?? null,
+    filters.offset ?? null,
+  );
   return rows.map(mapReading);
 }
 
