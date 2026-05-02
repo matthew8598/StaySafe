@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useCallback } from "react";
 import { login as apiLogin, register as apiRegister } from "../api/api";
 
@@ -14,6 +15,13 @@ function loadSession() {
 
 export function AuthProvider({ children }) {
   const [auth, setAuth] = useState(() => loadSession());
+  const [device, _setDevice] = useState(null);
+  const [deviceChecked, setDeviceChecked] = useState(false);
+
+  const setDevice = useCallback((dev) => {
+    _setDevice(dev);
+    setDeviceChecked(true);
+  }, []);
 
   const login = useCallback(async (email, password) => {
     const data = await apiLogin(email, password);
@@ -44,6 +52,8 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     sessionStorage.removeItem("staysafe_auth");
     setAuth(null);
+    _setDevice(null);
+    setDeviceChecked(false);
   }, []);
 
   return (
@@ -51,6 +61,9 @@ export function AuthProvider({ children }) {
       value={{
         user: auth?.user ?? null,
         token: auth?.token ?? null,
+        device,
+        deviceChecked,
+        setDevice,
         login,
         register,
         logout,

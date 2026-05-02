@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, ReferenceLine, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import {
   SENSOR_CONFIG, getSensorStatus, getAllSensorReadings, getReadingsByDateRange, getThresholds,
 } from '../api/api';
+import { useAuth } from '../context/AuthContext';
+import { formatDateTime, formatShortDateTime, formatTime } from '../utils/dateTime';
 
 const FILTERS = [
   { key: 'all', label: 'All Sensors' },
@@ -24,21 +26,12 @@ const PRESETS = [
 ];
 
 const SENSOR_TYPES = ['temperature', 'humidity', 'light'];
-
-function formatDateTime(iso) {
-  return new Date(iso).toLocaleString();
-}
-
-function formatTime(iso) {
-  const d = new Date(iso);
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-}
-
-function formatDateShort(iso) {
-  const d = new Date(iso);
-  return `${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')} `
-    + `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-}
+const TABLE_PAGE_SIZE = 200;
+const INITIAL_ANOMALY_COUNTS = {
+  temperature: 0,
+  humidity: 0,
+  light: 0,
+};
 
 /** Format a Date to the value expected by <input type="datetime-local"> */
 function toDatetimeLocal(date) {
@@ -48,11 +41,13 @@ function toDatetimeLocal(date) {
     + `T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function ChartTooltip({ active, payload, label, unit, color }) {
+function ChartTooltip({ active, payload, unit, color }) {
   if (!active || !payload?.length) return null;
+
+  const point = payload[0].payload;
   return (
     <div className="detail-tooltip">
-      <div className="detail-tooltip__time">{label}</div>
+      <div className="detail-tooltip__time">{formatDateTime(point.recordedAt)}</div>
       <div className="detail-tooltip__val" style={{ color }}>
         {parseFloat(payload[0].value).toFixed(1)} {unit}
       </div>
@@ -60,7 +55,7 @@ function ChartTooltip({ active, payload, label, unit, color }) {
   );
 }
 
-function SensorHistoryChart({ type }) {
+function SensorHistoryChart({ type, deviceId }) {
   const cfg = SENSOR_CONFIG[type];
 
   const nowInit = new Date();
@@ -89,7 +84,7 @@ function SensorHistoryChart({ type }) {
         to   = appliedRange.to;
       }
 
-      const readings = await getReadingsByDateRange(type, from, to);
+      const readings = await getReadingsByDateRange(type, from, to, deviceId);
       if (!mounted) return;
 
       const spanMin = readings.length > 1
@@ -97,7 +92,8 @@ function SensorHistoryChart({ type }) {
         : 0;
 
       setChartData(readings.map(r => ({
-        time: spanMin > 1440 ? formatDateShort(r.recordedAt) : formatTime(r.recordedAt),
+        recordedAt: r.recordedAt,
+        axisLabel: spanMin > 1440 ? formatShortDateTime(r.recordedAt) : formatTime(r.recordedAt),
         value: r.value,
       })));
       setLoading(false);
@@ -105,7 +101,7 @@ function SensorHistoryChart({ type }) {
 
     load();
     return () => { mounted = false; };
-  }, [type, mode, presetIndex, appliedRange]);
+  }, [type, mode, presetIndex, appliedRange, deviceId]);
 
   function handleApply() {
     if (!fromInput || !toInput) { setRangeError('Please fill both fields.'); return; }
@@ -202,7 +198,7 @@ function SensorHistoryChart({ type }) {
           {rangeError && <p className="range-error">{rangeError}</p>}
           {appliedRange && !rangeError && (
             <p className="range-applied">
-              Showing: {appliedRange.from.toLocaleString()} — {appliedRange.to.toLocaleString()}
+              Showing: {formatDateTime(appliedRange.from)} — {formatDateTime(appliedRange.to)}
             </p>
           )}
         </div>
@@ -224,7 +220,7 @@ function SensorHistoryChart({ type }) {
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#252839" vertical={false} />
             <XAxis
-              dataKey="time"
+              dataKey="axisLabel"
               stroke="#252839"
               tick={{ fill: '#8892a4', fontSize: 10 }}
               tickLine={false}
@@ -291,26 +287,87 @@ function SensorHistoryChart({ type }) {
 
 export default function History() {
   const navigate = useNavigate();
+  const { device, deviceChecked } = useAuth();
+  const deviceId = device?.id;
   const [readings, setReadings] = useState([]);
+  const [anomalyCount7d, setAnomalyCount7d] = useState(0);
+  const [anomalyCountsBySensor7d, setAnomalyCountsBySensor7d] = useState(INITIAL_ANOMALY_COUNTS);
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
+    if (!deviceId) return;
     let mounted = true;
     async function load() {
-      const data = await getAllSensorReadings(150);
+      const to = new Date();
+      const from = new Date(to.getTime() - 7 * 24 * 60 * 60_000);
+
+      const [data, temp7d, humidity7d, light7d] = await Promise.all([
+        getAllSensorReadings(TABLE_PAGE_SIZE, deviceId, 0),
+        getReadingsByDateRange('temperature', from, to, deviceId),
+        getReadingsByDateRange('humidity', from, to, deviceId),
+        getReadingsByDateRange('light', from, to, deviceId),
+      ]);
+
+      const temperatureAnomalies = temp7d.filter(
+        (reading) => getSensorStatus('temperature', reading.value) === 'alert',
+      ).length;
+      const humidityAnomalies = humidity7d.filter(
+        (reading) => getSensorStatus('humidity', reading.value) === 'alert',
+      ).length;
+      const lightAnomalies = light7d.filter(
+        (reading) => getSensorStatus('light', reading.value) === 'alert',
+      ).length;
+      const anomalies = temperatureAnomalies + humidityAnomalies + lightAnomalies;
+
       if (mounted) {
         setReadings(data);
+        setOffset(data.length);
+        setHasMore(data.length === TABLE_PAGE_SIZE);
+        setAnomalyCount7d(anomalies);
+        setAnomalyCountsBySensor7d({
+          temperature: temperatureAnomalies,
+          humidity: humidityAnomalies,
+          light: lightAnomalies,
+        });
         setLoading(false);
       }
     }
     load();
     return () => { mounted = false; };
-  }, []);
+  }, [deviceId]);
 
   const filtered = filter === 'all'
     ? readings
     : readings.filter(r => r.sensorType === filter);
+
+  async function handleLoadMore() {
+    if (!deviceId || loading || loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    try {
+      const next = await getAllSensorReadings(TABLE_PAGE_SIZE, deviceId, offset);
+      setReadings(prev => [...prev, ...next]);
+      setOffset(prev => prev + next.length);
+      setHasMore(next.length === TABLE_PAGE_SIZE);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  if (!deviceChecked) {
+    return (
+      <div className="page-loading">
+        <div className="spinner" />
+        Loading…
+      </div>
+    );
+  }
+
+  if (!device) return <Navigate to="/dashboard" replace />;
 
   const counts = {
     all: readings.length,
@@ -318,10 +375,7 @@ export default function History() {
     humidity: readings.filter(r => r.sensorType === 'humidity').length,
     light: readings.filter(r => r.sensorType === 'light').length,
   };
-
-  const alertCount = readings.filter(
-    r => getSensorStatus(r.sensorType, r.value) === 'alert'
-  ).length;
+  const hasAnomalies7d = anomalyCount7d > 0;
 
   return (
     <div className="history-page">
@@ -330,11 +384,9 @@ export default function History() {
           <h1 className="page-title">History</h1>
           <p className="page-subtitle">All sensor readings from your safe</p>
         </div>
-        {alertCount > 0 && (
-          <div className="history-alert-badge">
-            {alertCount} alert{alertCount !== 1 ? 's' : ''} detected
-          </div>
-        )}
+        <div className={`history-alert-badge ${hasAnomalies7d ? 'history-alert-badge--active' : 'history-alert-badge--ok'}`}>
+          {anomalyCount7d} anomal{anomalyCount7d === 1 ? 'y' : 'ies'} detected in the last 7 days
+        </div>
       </div>
 
       {/* ── Summary cards ── */}
@@ -342,9 +394,7 @@ export default function History() {
         {['temperature', 'humidity', 'light'].map(type => {
           const cfg = SENSOR_CONFIG[type];
           const typeReadings = readings.filter(r => r.sensorType === type);
-          const alerts = typeReadings.filter(
-            r => getSensorStatus(type, r.value) === 'alert'
-          ).length;
+          const alerts7d = anomalyCountsBySensor7d[type] ?? 0;
           return (
             <button
               key={type}
@@ -356,9 +406,9 @@ export default function History() {
                 {cfg.label}
               </span>
               <span className="history-summary-card__count">{typeReadings.length} readings</span>
-              {alerts > 0 && (
-                <span className="history-summary-card__alert">{alerts} alerts</span>
-              )}
+              <span className={`history-summary-card__alert${alerts7d > 0 ? '' : ' history-summary-card__alert--ok'}`}>
+                {alerts7d} anomal{alerts7d === 1 ? 'y' : 'ies'} (7d)
+              </span>
             </button>
           );
         })}
@@ -367,7 +417,7 @@ export default function History() {
       {/* ── Sensor charts ── */}
       <div className="history-charts">
         {SENSOR_TYPES.map(type => (
-          <SensorHistoryChart key={type} type={type} />
+          <SensorHistoryChart key={type} type={type} deviceId={deviceId} />
         ))}
       </div>
 
@@ -408,11 +458,11 @@ export default function History() {
               </tr>
             </thead>
             <tbody>
-              {filtered.slice(0, 100).map((r, i) => {
+              {filtered.map((r, i) => {
                 const cfg = SENSOR_CONFIG[r.sensorType];
                 const s = getSensorStatus(r.sensorType, r.value);
                 return (
-                  <tr key={i}>
+                  <tr key={`${r.id ?? 'r'}-${i}`}>
                     <td className="td-mono">{formatDateTime(r.recordedAt)}</td>
                     <td>
                       <span
@@ -435,9 +485,14 @@ export default function History() {
               })}
             </tbody>
           </table>
-          {filtered.length > 100 && (
-            <p className="table-truncate-note">Showing 100 of {filtered.length} records</p>
-          )}
+          <div className="table-truncate-note" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <span>Loaded {readings.length} records</span>
+            {hasMore && (
+              <button className="apply-btn" onClick={handleLoadMore} disabled={loadingMore}>
+                {loadingMore ? 'Loading…' : 'Load more'}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

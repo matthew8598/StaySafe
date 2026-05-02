@@ -40,7 +40,7 @@ export async function dbSelectReadingById(id) {
   return result.rows[0] ?? null;
 }
 
-export async function dbSelectReadings(conditions = [], values = [], limit = null) {
+export async function dbSelectReadings(conditions = [], values = [], limit = null, offset = null) {
   let sql = `SELECT id, device_id, sensor_type, value, unit, recorded_at, created_at FROM sensor_readings`;
   if (conditions.length > 0) {
     sql += " WHERE " + conditions.join(" AND ");
@@ -48,6 +48,9 @@ export async function dbSelectReadings(conditions = [], values = [], limit = nul
   sql += " ORDER BY recorded_at DESC";
   if (limit !== null) {
     sql += ` LIMIT ${parseInt(limit, 10)}`;
+  }
+  if (offset !== null) {
+    sql += ` OFFSET ${parseInt(offset, 10)}`;
   }
   const result = await pool.query(toPositional(sql), values);
   return result.rows;
@@ -63,22 +66,33 @@ export async function dbInsertAlert(deviceId, sensorType, message) {
   return result.rows[0].id;
 }
 
-export async function dbSelectAlerts(conditions = [], values = []) {
-  let sql = `SELECT id, device_id, sensor_type, message, triggered_at FROM alerts`;
+export async function dbSelectAlerts(conditions = [], values = [], limit = null) {
+  let sql = `SELECT id, device_id, sensor_type, message, triggered_at, is_read FROM alerts`;
   if (conditions.length > 0) {
     sql += " WHERE " + conditions.join(" AND ");
   }
   sql += " ORDER BY triggered_at DESC";
+  if (limit !== null) {
+    sql += ` LIMIT ${parseInt(limit, 10)}`;
+  }
   const result = await pool.query(toPositional(sql), values);
   return result.rows;
 }
 
 export async function dbSelectAlertById(id) {
   const result = await pool.query(
-    `SELECT id, device_id, sensor_type, message, triggered_at FROM alerts WHERE id = $1`,
+    `SELECT id, device_id, sensor_type, message, triggered_at, is_read FROM alerts WHERE id = $1`,
     [id],
   );
   return result.rows[0] ?? null;
+}
+
+export async function dbMarkAlertAsRead(id) {
+  const result = await pool.query(
+    `UPDATE alerts SET is_read = TRUE WHERE id = $1`,
+    [id],
+  );
+  return result.rowCount > 0;
 }
 
 export async function dbDeleteAlert(id) {

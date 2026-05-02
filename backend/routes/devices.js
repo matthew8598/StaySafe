@@ -6,39 +6,48 @@ import {
   dbSelectDeviceById,
   dbUpdateDevice,
   dbDeleteDevice,
+  dbUpsertSensorControl,
 } from "../db.js";
+import { authenticate } from "../middleware/auth.js";
  
 const router = express.Router();
+
+router.use(authenticate);
  
 
+const ALL_SENSORS = ["temperature", "humidity", "light"];
+
 router.post("/", async (req, res) => {
-  const { user_id, name, location } = req.body;
- 
-  if (!user_id || !name) {
-    return res.status(400).json({
-      error: "Chybějící povinná pole: user_id, name",
-    });
-  }
- 
+  const { name, location, selectedSensors } = req.body;
+  const user_id = req.user.id;
+  const deviceName = name && name.trim() ? name.trim() : "My Device";
+  const enabledSensors = Array.isArray(selectedSensors) ? selectedSensors : ALL_SENSORS;
+
   try {
-    const id = await dbInsertDevice(user_id, name, location);
+    const existing = await dbSelectDevicesByUserId(user_id);
+    if (existing.length > 0) {
+      return res.status(409).json({ error: "This account already has a registered device." });
+    }
+
+    const id = await dbInsertDevice(user_id, deviceName, location ?? null);
+
+    for (const sensorType of ALL_SENSORS) {
+      const isEnabled = enabledSensors.includes(sensorType);
+      await dbUpsertSensorControl(id, user_id, sensorType, isEnabled, null, null);
+    }
+
     const device = await dbSelectDeviceById(id);
     return res.status(201).json(device);
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "Chyba serveru při registraci zařízení." });
+    return res.status(500).json({ error: "Server error during device registration." });
   }
 });
  
 
 router.get("/", async (req, res) => {
-  const { user_id } = req.query;
- 
   try {
-    const rows = user_id
-      ? await dbSelectDevicesByUserId(user_id)
-      : await dbSelectAllDevices();
- 
+    const rows = await dbSelectDevicesByUserId(req.user.id);
     return res.status(200).json({ total: rows.length, data: rows });
   } catch (err) {
     console.error(err);
@@ -52,6 +61,10 @@ router.get("/:id", async (req, res) => {
  
     if (!device) {
       return res.status(404).json({ error: "Zařízení nenalezeno." });
+    }
+
+    if (device.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Forbidden" });
     }
  
     return res.status(200).json(device);
@@ -75,6 +88,10 @@ router.put("/:id", async (req, res) => {
     const existing = await dbSelectDeviceById(id);
     if (!existing) {
       return res.status(404).json({ error: "Zařízení nenalezeno." });
+    }
+
+    if (existing.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Forbidden" });
     }
  
     const updated = await dbUpdateDevice(
@@ -101,12 +118,16 @@ router.put("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    const deleted = await dbDeleteDevice(req.params.id);
- 
-    if (!deleted) {
+    const existing = await dbSelectDeviceById(req.params.id);
+    if (!existing) {
       return res.status(404).json({ error: "Zařízení nenalezeno." });
     }
- 
+
+    if (existing.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    await dbDeleteDevice(req.params.id);
     return res.status(200).json({ message: "Zařízení bylo smazáno." });
   } catch (err) {
     console.error(err);

@@ -1,5 +1,6 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import {
   AreaChart,
   Area,
@@ -10,22 +11,23 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { SENSOR_CONFIG, getSensorStatus, getHistoryReadings, getThresholds, setThresholds } from '../api/api';
+import {
+  SENSOR_CONFIG,
+  getSensorStatus,
+  getHistoryReadings,
+  getThresholds,
+  setThresholds,
+  getSensorControls,
+  setSensorThresholds,
+} from '../api/api';
+import { useAuth } from '../context/AuthContext';
+import { formatDateTime, formatTime } from '../utils/dateTime';
 
 const TIME_RANGES = [
   { label: '10 min', count: 10, interval: 1 },
   { label: '1 hour', count: 60, interval: 1 },
   { label: '24 hours', count: 144, interval: 10 },
 ];
-
-function formatTime(iso) {
-  const d = new Date(iso);
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-}
-
-function formatDateTime(iso) {
-  return new Date(iso).toLocaleString();
-}
 
 function BackIcon() {
   return (
@@ -76,6 +78,7 @@ function DetailTooltip({ active, payload, label, unit, color }) {
 export default function SensorDetail() {
   const { type } = useParams();
   const navigate = useNavigate();
+  const { device, deviceChecked } = useAuth();
   const cfg = SENSOR_CONFIG[type];
 
   const [readings, setReadings] = useState([]);
@@ -97,16 +100,26 @@ export default function SensorDetail() {
     setEditMax(String(t.max));
   }, [type]);
 
-  function handleSaveThresholds() {
+  async function handleSaveThresholds() {
     const mn = parseFloat(editMin);
     const mx = parseFloat(editMax);
     if (isNaN(mn) || isNaN(mx)) { setThreshError('Enter valid numbers.'); return; }
     if (mn >= mx) { setThreshError('Min must be less than Max.'); return; }
+
     setThreshError('');
-    setThresholds(type, mn, mx);
-    setThresholdsState({ min: mn, max: mx });
-    setThreshSaved(true);
-    setTimeout(() => setThreshSaved(false), 2000);
+
+    try {
+      if (device?.id) {
+        await setSensorThresholds(type, mn, mx, device.id);
+      }
+
+      setThresholds(type, mn, mx);
+      setThresholdsState({ min: mn, max: mx });
+      setThreshSaved(true);
+      setTimeout(() => setThreshSaved(false), 2000);
+    } catch (error) {
+      setThreshError(error.message || 'Failed to save thresholds.');
+    }
   }
 
   useEffect(() => {
@@ -114,11 +127,12 @@ export default function SensorDetail() {
       navigate('/dashboard');
       return;
     }
+    if (!device) return;
     let mounted = true;
     async function load() {
       setLoading(true);
       const range = TIME_RANGES[rangeIndex];
-      const data = await getHistoryReadings(type, range.interval, range.count);
+      const data = await getHistoryReadings(type, range.interval, range.count, device.id);
       if (mounted) {
         setReadings(data);
         setLoading(false);
@@ -126,7 +140,49 @@ export default function SensorDetail() {
     }
     load();
     return () => { mounted = false; };
-  }, [type, rangeIndex, cfg, navigate]);
+  }, [type, rangeIndex, cfg, navigate, device, device?.id]);
+
+  useEffect(() => {
+    if (!device?.id || !cfg) return;
+
+    let mounted = true;
+
+    async function loadControlThresholds() {
+      try {
+        const controls = await getSensorControls(device.id);
+        if (!mounted) return;
+
+        const control = controls.find((item) => item.sensorType === type);
+        if (
+          control
+          && typeof control.thresholdMin === 'number'
+          && typeof control.thresholdMax === 'number'
+          && control.thresholdMin < control.thresholdMax
+        ) {
+          setThresholds(type, control.thresholdMin, control.thresholdMax);
+          setThresholdsState({ min: control.thresholdMin, max: control.thresholdMax });
+          setEditMin(String(control.thresholdMin));
+          setEditMax(String(control.thresholdMax));
+        }
+      } catch {
+        // Ignore threshold sync failures to keep detail page usable.
+      }
+    }
+
+    loadControlThresholds();
+    return () => { mounted = false; };
+  }, [device?.id, cfg, type]);
+
+  if (!deviceChecked) {
+    return (
+      <div className="page-loading">
+        <div className="spinner" />
+        Loading…
+      </div>
+    );
+  }
+
+  if (!device) return <Navigate to="/dashboard" replace />;
 
   if (!cfg) return null;
 
