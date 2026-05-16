@@ -4,6 +4,7 @@
   "description": "Sem vytvorte express app",
   "main": "index.js",
   "scripts": {
+    "build": "node -e \"console.log('No build step required')\"",
     "start": "cross-env NODE_ENV=production node index.js",
     "dev": "cross-env NODE_ENV=development nodemon index.js",
     "serial-bridge": "node serial-bridge.js"
