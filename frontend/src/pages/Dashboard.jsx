@@ -8,6 +8,7 @@ import { useAlertCenter } from '../context/AlertCenterContext';
 import {
   getReadingsByDateRange,
   getSensorStatus,
+  SUPPORTED_SENSOR_TYPES,
   setThresholds,
   getProtectionStatus,
   toggleProtection,
@@ -15,15 +16,13 @@ import {
   toggleSensorEnabled,
 } from '../api/api';
 
-const SENSOR_TYPES = ['temperature', 'humidity', 'light'];
+const INITIAL_STATE = Object.fromEntries(
+  SUPPORTED_SENSOR_TYPES.map((sensorType) => [sensorType, { readings: [], current: null, status: 'ok' }]),
+);
 
-const INITIAL_STATE = {
-  temperature: { readings: [], current: null, status: 'ok' },
-  humidity: { readings: [], current: null, status: 'ok' },
-  light: { readings: [], current: null, status: 'ok' },
-};
-
-const INITIAL_ENABLED = { temperature: true, humidity: true, light: true };
+const INITIAL_ENABLED = Object.fromEntries(
+  SUPPORTED_SENSOR_TYPES.map((sensorType) => [sensorType, true]),
+);
 
 const POLL_RATES = [
   { label: '2s',  ms: 2_000 },
@@ -51,10 +50,10 @@ export default function Dashboard() {
     async function load() {
       const now = new Date();
       const from = new Date(now - 10 * 60_000);
-      const [tempReadings, humReadings, lightReadings, protStatus, controls] = await Promise.all([
-        getReadingsByDateRange('temperature', from, now, deviceId),
-        getReadingsByDateRange('humidity', from, now, deviceId),
-        getReadingsByDateRange('light', from, now, deviceId),
+      const [readingsByType, protStatus, controls] = await Promise.all([
+        Promise.all(
+          SUPPORTED_SENSOR_TYPES.map((sensorType) => getReadingsByDateRange(sensorType, from, now, deviceId)),
+        ),
         getProtectionStatus(deviceId),
         getSensorControls(deviceId).catch(() => []),
       ]);
@@ -70,11 +69,12 @@ export default function Dashboard() {
         };
       }
 
-      setSensorData({
-        temperature: processReadings(tempReadings, 'temperature'),
-        humidity: processReadings(humReadings, 'humidity'),
-        light: processReadings(lightReadings, 'light'),
-      });
+      setSensorData(Object.fromEntries(
+        SUPPORTED_SENSOR_TYPES.map((sensorType, index) => [
+          sensorType,
+          processReadings(readingsByType[index], sensorType),
+        ]),
+      ));
       setProtection(protStatus.isEnabled);
 
       if (controls.length > 0) {
@@ -136,7 +136,7 @@ export default function Dashboard() {
     alert.sensorType === 'system'
     || /no new sensor data/i.test(alert.message)
   ));
-  const hasSensorAlert = SENSOR_TYPES.some(t => sensorData[t].status === 'alert');
+  const hasSensorAlert = SUPPORTED_SENSOR_TYPES.some((sensorType) => sensorData[sensorType].status === 'alert');
   const overallMode = hasNoDataAlert
     ? 'alert'
     : (!protection ? 'paused' : (hasSensorAlert ? 'alert' : 'ok'));
@@ -250,7 +250,7 @@ export default function Dashboard() {
 
       {/* ── Sensor cards ── */}
       <div className="sensor-grid">
-        {SENSOR_TYPES.map(type => (
+        {SUPPORTED_SENSOR_TYPES.map(type => (
           <SensorCard
             key={type}
             type={type}

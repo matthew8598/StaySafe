@@ -1,33 +1,17 @@
 import { useState } from 'react';
 import { createDevice } from '../api/api';
 
-const ALL_SENSORS = [
-  { key: 'temperature', label: 'Temperature' },
-  { key: 'humidity', label: 'Humidity' },
-  { key: 'light', label: 'Light' },
-];
-
 export default function AddDeviceModal({ onDeviceAdded, onClose }) {
   const [name, setName] = useState('My Safe');
-  const [sensors, setSensors] = useState({ temperature: true, humidity: true, light: true });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  function toggleSensor(key) {
-    setSensors(prev => ({ ...prev, [key]: !prev[key] }));
-  }
-
   async function handleSubmit(e) {
     e.preventDefault();
-    const selectedSensors = Object.keys(sensors).filter(k => sensors[k]);
-    if (!selectedSensors.length) {
-      setError('Select at least one sensor.');
-      return;
-    }
     setSubmitting(true);
     setError('');
     try {
-      const device = await createDevice(name.trim() || 'My Device', null, selectedSensors);
+      const device = await createDevice(name.trim() || 'My Device', null);
       onDeviceAdded(device);
     } catch (err) {
       setError(err.message || 'Failed to register device.');
@@ -63,23 +47,10 @@ export default function AddDeviceModal({ onDeviceAdded, onClose }) {
           </div>
 
           <div className="modal__sensor-section">
-            <span className="form-label">Sensors</span>
-            <div className="sensor-check-group">
-              {ALL_SENSORS.map(s => (
-                <label
-                  key={s.key}
-                  className={`sensor-check${sensors[s.key] ? ' sensor-check--on' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={sensors[s.key]}
-                    onChange={() => toggleSensor(s.key)}
-                    className="sensor-check__input"
-                  />
-                  <span className="sensor-check__label">{s.label}</span>
-                </label>
-              ))}
-            </div>
+            <span className="form-label">Enabled sensors</span>
+            <p className="page-subtitle" style={{ margin: 0 }}>
+              Temperature and light monitoring are enabled automatically for every device.
+            </p>
           </div>
 
           {error && <p className="auth-error">{error}</p>}

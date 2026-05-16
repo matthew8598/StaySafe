@@ -2,12 +2,11 @@ import { SENSOR_CONFIG } from "./shared.js";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
-const SENSOR_TYPES = ["temperature", "humidity", "light"];
+const SENSOR_TYPES = ["temperature", "light"];
 
 // Simple seeded random walk per sensor so values look realistic
 const state = {
   temperature: 22.5,
-  humidity: 47,
   light: 0,
 };
 

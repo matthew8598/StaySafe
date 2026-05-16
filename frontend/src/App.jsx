@@ -12,16 +12,16 @@ import Register from './pages/Register';
 import './App.css';
 
 function ProtectedLayout() {
-  const { user, deviceChecked, setDevice } = useAuth();
+  const { user, token, deviceChecked, setDevice } = useAuth();
 
   useEffect(() => {
-    if (!user || deviceChecked) return;
+    if (!user || !token || deviceChecked) return;
     getDevices()
       .then(({ data }) => setDevice(data.length > 0 ? data[0] : null))
       .catch(() => setDevice(null));
-  }, [user, deviceChecked, setDevice]);
+  }, [user, token, deviceChecked, setDevice]);
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user || !token) return <Navigate to="/login" replace />;
 
   return <Layout />;
 }

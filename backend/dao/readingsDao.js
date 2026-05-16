@@ -6,11 +6,10 @@ import {
 
 const SENSOR_UNITS = {
   temperature: "°C",
-  humidity: "%",
   light: "lux",
 };
 
-// Arduino sends { deviceId, temperature|humidity|light, timestamp }
+// Arduino sends { deviceId, temperature|light, timestamp }
 export async function createReading(payload) {
   const { deviceId, timestamp, ...sensorFields } = payload;
 
@@ -40,6 +39,10 @@ export async function listReadings(filters = {}) {
   if (filters.sensorType) {
     conditions.push("sensor_type = ?");
     values.push(filters.sensorType);
+  } else if (Array.isArray(filters.sensorTypes) && filters.sensorTypes.length > 0) {
+    const placeholders = filters.sensorTypes.map(() => "?").join(", ");
+    conditions.push(`sensor_type IN (${placeholders})`);
+    values.push(...filters.sensorTypes);
   }
 
   if (filters.from) {

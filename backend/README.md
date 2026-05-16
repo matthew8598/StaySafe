@@ -31,7 +31,7 @@ graph LR
     C -->|"Listens on USB"| D
     D -->|"Forward to HTTP"| E
     
-    E -->|"Temperature<br/>Humidity<br/>Light"| F
+    E -->|"Temperature<br/>Light"| F
     
     F -->|"Stores/Retrieves"| E
     E -->|"GET /api/readings"| G
@@ -231,7 +231,7 @@ npm start
 
 **POST** `/api/readings`
 - Příjem dat z Arduino
-- Body: `{ deviceId, timestamp, temperature|humidity|light }`
+- Body: `{ deviceId, timestamp, temperature|light }`
 - Příklad:
 ```bash
 curl -X POST http://localhost:3000/api/readings \

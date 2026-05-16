@@ -4,16 +4,17 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, ReferenceLine, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import {
-  SENSOR_CONFIG, getSensorStatus, getAllSensorReadings, getReadingsByDateRange, getThresholds,
+  SENSOR_CONFIG, SUPPORTED_SENSOR_TYPES, getSensorStatus, getAllSensorReadings, getReadingsByDateRange, getThresholds, isSupportedSensorType,
 } from '../api/api';
 import { useAuth } from '../context/AuthContext';
 import { formatDateTime, formatShortDateTime, formatTime } from '../utils/dateTime';
 
 const FILTERS = [
   { key: 'all', label: 'All Sensors' },
-  { key: 'temperature', label: 'Temperature' },
-  { key: 'humidity', label: 'Humidity' },
-  { key: 'light', label: 'Light' },
+  ...SUPPORTED_SENSOR_TYPES.map((sensorType) => ({
+    key: sensorType,
+    label: SENSOR_CONFIG[sensorType].label,
+  })),
 ];
 
 const PRESETS = [
@@ -25,13 +26,10 @@ const PRESETS = [
   { label: 'All time', minutes: 43200 },
 ];
 
-const SENSOR_TYPES = ['temperature', 'humidity', 'light'];
 const TABLE_PAGE_SIZE = 200;
-const INITIAL_ANOMALY_COUNTS = {
-  temperature: 0,
-  humidity: 0,
-  light: 0,
-};
+const INITIAL_ANOMALY_COUNTS = Object.fromEntries(
+  SUPPORTED_SENSOR_TYPES.map((sensorType) => [sensorType, 0]),
+);
 
 /** Format a Date to the value expected by <input type="datetime-local"> */
 function toDatetimeLocal(date) {
@@ -305,34 +303,28 @@ export default function History() {
       const to = new Date();
       const from = new Date(to.getTime() - 7 * 24 * 60 * 60_000);
 
-      const [data, temp7d, humidity7d, light7d] = await Promise.all([
+      const [data, ...sensorReadings] = await Promise.all([
         getAllSensorReadings(TABLE_PAGE_SIZE, deviceId, 0),
-        getReadingsByDateRange('temperature', from, to, deviceId),
-        getReadingsByDateRange('humidity', from, to, deviceId),
-        getReadingsByDateRange('light', from, to, deviceId),
+        ...SUPPORTED_SENSOR_TYPES.map((sensorType) => getReadingsByDateRange(sensorType, from, to, deviceId)),
       ]);
 
-      const temperatureAnomalies = temp7d.filter(
-        (reading) => getSensorStatus('temperature', reading.value) === 'alert',
-      ).length;
-      const humidityAnomalies = humidity7d.filter(
-        (reading) => getSensorStatus('humidity', reading.value) === 'alert',
-      ).length;
-      const lightAnomalies = light7d.filter(
-        (reading) => getSensorStatus('light', reading.value) === 'alert',
-      ).length;
-      const anomalies = temperatureAnomalies + humidityAnomalies + lightAnomalies;
+      const anomalyCountsBySensor = Object.fromEntries(
+        SUPPORTED_SENSOR_TYPES.map((sensorType, index) => [
+          sensorType,
+          sensorReadings[index].filter(
+            (reading) => getSensorStatus(sensorType, reading.value) === 'alert',
+          ).length,
+        ]),
+      );
+      const anomalies = Object.values(anomalyCountsBySensor).reduce((sum, count) => sum + count, 0);
 
       if (mounted) {
-        setReadings(data);
-        setOffset(data.length);
-        setHasMore(data.length === TABLE_PAGE_SIZE);
+        const supportedReadings = data.filter((reading) => isSupportedSensorType(reading.sensorType));
+        setReadings(supportedReadings);
+        setOffset(supportedReadings.length);
+        setHasMore(supportedReadings.length === TABLE_PAGE_SIZE);
         setAnomalyCount7d(anomalies);
-        setAnomalyCountsBySensor7d({
-          temperature: temperatureAnomalies,
-          humidity: humidityAnomalies,
-          light: lightAnomalies,
-        });
+        setAnomalyCountsBySensor7d(anomalyCountsBySensor);
         setLoading(false);
       }
     }
@@ -350,9 +342,10 @@ export default function History() {
     setLoadingMore(true);
     try {
       const next = await getAllSensorReadings(TABLE_PAGE_SIZE, deviceId, offset);
-      setReadings(prev => [...prev, ...next]);
-      setOffset(prev => prev + next.length);
-      setHasMore(next.length === TABLE_PAGE_SIZE);
+      const supportedNext = next.filter((reading) => isSupportedSensorType(reading.sensorType));
+      setReadings(prev => [...prev, ...supportedNext]);
+      setOffset(prev => prev + supportedNext.length);
+      setHasMore(supportedNext.length === TABLE_PAGE_SIZE);
     } finally {
       setLoadingMore(false);
     }
@@ -371,9 +364,12 @@ export default function History() {
 
   const counts = {
     all: readings.length,
-    temperature: readings.filter(r => r.sensorType === 'temperature').length,
-    humidity: readings.filter(r => r.sensorType === 'humidity').length,
-    light: readings.filter(r => r.sensorType === 'light').length,
+    ...Object.fromEntries(
+      SUPPORTED_SENSOR_TYPES.map((sensorType) => [
+        sensorType,
+        readings.filter((reading) => reading.sensorType === sensorType).length,
+      ]),
+    ),
   };
   const hasAnomalies7d = anomalyCount7d > 0;
 
@@ -391,7 +387,7 @@ export default function History() {
 
       {/* ── Summary cards ── */}
       <div className="history-summary">
-        {['temperature', 'humidity', 'light'].map(type => {
+        {SUPPORTED_SENSOR_TYPES.map(type => {
           const cfg = SENSOR_CONFIG[type];
           const typeReadings = readings.filter(r => r.sensorType === type);
           const alerts7d = anomalyCountsBySensor7d[type] ?? 0;
@@ -416,7 +412,7 @@ export default function History() {
 
       {/* ── Sensor charts ── */}
       <div className="history-charts">
-        {SENSOR_TYPES.map(type => (
+        {SUPPORTED_SENSOR_TYPES.map(type => (
           <SensorHistoryChart key={type} type={type} deviceId={deviceId} />
         ))}
       </div>

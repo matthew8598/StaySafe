@@ -8,6 +8,12 @@ import {
 import { listReadings } from "../dao/readingsDao.js";
 import { dbSelectDeviceById } from "../db.js";
 
+const SUPPORTED_SENSOR_TYPES = ["temperature", "light"];
+
+function isSupportedSensorType(sensorType) {
+  return SUPPORTED_SENSOR_TYPES.includes(sensorType);
+}
+
 const DEFAULT_SEND_INTERVAL_MS = 10_000;
 const OFFLINE_MULTIPLIER = 2;
 
@@ -54,6 +60,12 @@ export async function createAlertController(req, res) {
       });
     }
 
+    if (sensorType !== "system" && sensorType !== "offline" && !isSupportedSensorType(sensorType)) {
+      return res.status(400).json({
+        message: `sensorType must be one of: ${SUPPORTED_SENSOR_TYPES.join(", ")}, system, offline`,
+      });
+    }
+
     const device = await dbSelectDeviceById(Number(deviceId));
     if (!device) return res.status(404).json({ message: "Device not found" });
     if (device.user_id !== req.user.id) return res.status(403).json({ message: "Forbidden" });
@@ -77,6 +89,10 @@ export async function createAlertController(req, res) {
 export async function listAlertsController(req, res) {
   try {
     const { deviceId, sensorType, isRead, from, to, limit } = req.query;
+
+    if (sensorType && sensorType !== "system" && sensorType !== "offline" && !isSupportedSensorType(sensorType)) {
+      return res.status(400).json({ message: `sensorType must be one of: ${SUPPORTED_SENSOR_TYPES.join(", ")}, system, offline` });
+    }
 
     if (!deviceId) {
       return res.status(400).json({ message: "deviceId query param is required" });
@@ -105,21 +121,29 @@ export async function listAlertsController(req, res) {
       ? parsedLimit + 1
       : parsedLimit;
 
-    const alerts = await listAlerts({
-      deviceId: Number(deviceId),
-      sensorType,
-      isRead: parsedIsRead,
-      from,
-      to,
-      limit: daoLimit,
-    });
+    let alerts = [];
+    if (sensorType !== "system" && sensorType !== "offline") {
+      alerts = await listAlerts({
+        deviceId: Number(deviceId),
+        sensorType,
+        sensorTypes: sensorType ? undefined : SUPPORTED_SENSOR_TYPES,
+        isRead: parsedIsRead,
+        from,
+        to,
+        limit: daoLimit,
+      });
+    }
 
-    let mergedAlerts = alerts;
+    let mergedAlerts = alerts.filter((alert) => (
+      alert.sensorType === "system"
+      || alert.sensorType === "offline"
+      || isSupportedSensorType(alert.sensorType)
+    ));
     if (shouldIncludeOffline) {
       const [latestReading] = await listReadings({ deviceId: Number(deviceId), limit: 1 });
       const offlineAlert = maybeBuildOfflineAlert(Number(deviceId), latestReading);
       if (offlineAlert) {
-        mergedAlerts = [offlineAlert, ...alerts].sort(
+        mergedAlerts = [offlineAlert, ...mergedAlerts].sort(
           (a, b) => new Date(b.triggeredAt).getTime() - new Date(a.triggeredAt).getTime(),
         );
       }

@@ -14,14 +14,12 @@ const router = express.Router();
 
 router.use(authenticate);
  
-
-const ALL_SENSORS = ["temperature", "humidity", "light"];
+const ALL_SENSORS = ["temperature", "light"];
 
 router.post("/", async (req, res) => {
-  const { name, location, selectedSensors } = req.body;
+  const { name, location } = req.body;
   const user_id = req.user.id;
   const deviceName = name && name.trim() ? name.trim() : "My Device";
-  const enabledSensors = Array.isArray(selectedSensors) ? selectedSensors : ALL_SENSORS;
 
   try {
     const existing = await dbSelectDevicesByUserId(user_id);
@@ -32,8 +30,7 @@ router.post("/", async (req, res) => {
     const id = await dbInsertDevice(user_id, deviceName, location ?? null);
 
     for (const sensorType of ALL_SENSORS) {
-      const isEnabled = enabledSensors.includes(sensorType);
-      await dbUpsertSensorControl(id, user_id, sensorType, isEnabled, null, null);
+      await dbUpsertSensorControl(id, user_id, sensorType, true, null, null);
     }
 
     const device = await dbSelectDeviceById(id);

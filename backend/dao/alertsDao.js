@@ -24,6 +24,10 @@ export async function listAlerts(filters = {}) {
   if (filters.sensorType) {
     conditions.push("sensor_type = ?");
     values.push(filters.sensorType);
+  } else if (Array.isArray(filters.sensorTypes) && filters.sensorTypes.length > 0) {
+    const placeholders = filters.sensorTypes.map(() => "?").join(", ");
+    conditions.push(`sensor_type IN (${placeholders})`);
+    values.push(...filters.sensorTypes);
   }
 
   if (typeof filters.isRead === "boolean") {

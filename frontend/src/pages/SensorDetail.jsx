@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import {
   SENSOR_CONFIG,
+  SUPPORTED_SENSOR_TYPES,
   getSensorStatus,
   getHistoryReadings,
   getThresholds,
@@ -41,11 +42,6 @@ const SENSOR_ICONS = {
   temperature: (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z" />
-    </svg>
-  ),
-  humidity: (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
     </svg>
   ),
   light: (
@@ -80,6 +76,7 @@ export default function SensorDetail() {
   const navigate = useNavigate();
   const { device, deviceChecked } = useAuth();
   const cfg = SENSOR_CONFIG[type];
+  const isValidSensorType = SUPPORTED_SENSOR_TYPES.includes(type);
 
   const [readings, setReadings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -123,7 +120,7 @@ export default function SensorDetail() {
   }
 
   useEffect(() => {
-    if (!cfg) {
+    if (!isValidSensorType) {
       navigate('/dashboard');
       return;
     }
@@ -140,10 +137,10 @@ export default function SensorDetail() {
     }
     load();
     return () => { mounted = false; };
-  }, [type, rangeIndex, cfg, navigate, device, device?.id]);
+  }, [type, rangeIndex, isValidSensorType, navigate, device, device?.id]);
 
   useEffect(() => {
-    if (!device?.id || !cfg) return;
+    if (!device?.id || !isValidSensorType) return;
 
     let mounted = true;
 
@@ -171,7 +168,7 @@ export default function SensorDetail() {
 
     loadControlThresholds();
     return () => { mounted = false; };
-  }, [device?.id, cfg, type]);
+  }, [device?.id, isValidSensorType, type]);
 
   if (!deviceChecked) {
     return (
@@ -184,7 +181,7 @@ export default function SensorDetail() {
 
   if (!device) return <Navigate to="/dashboard" replace />;
 
-  if (!cfg) return null;
+  if (!isValidSensorType) return null;
 
   const current = readings.length ? readings[readings.length - 1].value : undefined;
   const status = current !== undefined ? getSensorStatus(type, current) : 'ok';

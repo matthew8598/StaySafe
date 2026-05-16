@@ -1,7 +1,7 @@
 import { getAllSensorControls, getSensorControl, upsertSensorControl } from "../dao/sensorControlsDao.js";
 import { dbSelectDeviceById } from "../db.js";
 
-const PER_SENSOR_TYPES = ["temperature", "humidity", "light"];
+const PER_SENSOR_TYPES = ["temperature", "light"];
 const VALID_CONTROL_TYPES = [...PER_SENSOR_TYPES, "all"];
 
 function parseThresholdValue(value, fieldName) {

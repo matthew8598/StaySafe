@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { getAlerts, resolveAlert, SENSOR_CONFIG } from "../api/api";
+import { getAlerts, resolveAlert, SENSOR_CONFIG, isSupportedSensorType } from "../api/api";
 import { useAuth } from "./AuthContext";
 
 const AlertCenterContext = createContext(null);
@@ -68,9 +68,14 @@ export function AlertCenterProvider({ children }) {
 
     try {
       const rows = await getAlerts(device.id, { isRead: false });
-      setAlerts(rows);
+      const visibleRows = rows.filter((alert) => (
+        alert.sensorType === "system"
+        || alert.sensorType === "offline"
+        || isSupportedSensorType(alert.sensorType)
+      ));
+      setAlerts(visibleRows);
       setError("");
-      triggerBrowserNotifications(rows);
+      triggerBrowserNotifications(visibleRows);
     } catch (err) {
       setError(err.message || "Failed to load alerts.");
     } finally {

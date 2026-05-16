@@ -10,15 +10,6 @@ export const SENSOR_CONFIG = {
     base: 22.5,
     variance: 2.5,
   },
-  humidity: {
-    label: "Humidity",
-    unit: "%",
-    color: "#38bdf8",
-    okMin: 20,
-    okMax: 65,
-    base: 47,
-    variance: 8,
-  },
   light: {
     label: "Light",
     unit: "lux",
@@ -29,6 +20,12 @@ export const SENSOR_CONFIG = {
     variance: 0,
   },
 };
+
+export const SUPPORTED_SENSOR_TYPES = Object.keys(SENSOR_CONFIG);
+
+export function isSupportedSensorType(sensorType) {
+  return SUPPORTED_SENSOR_TYPES.includes(sensorType);
+}
 
 // ─── Mock user (dev only) ─────────────────────────────────────────────────────
 

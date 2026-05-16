@@ -7,7 +7,15 @@ const AuthContext = createContext(null);
 function loadSession() {
   try {
     const raw = sessionStorage.getItem("staysafe_auth");
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    // A valid authenticated session must contain both user and token.
+    if (!parsed?.user || !parsed?.token) {
+      return null;
+    }
+
+    return parsed;
   } catch {
     return null;
   }
@@ -26,9 +34,13 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const data = await apiLogin(email, password);
 
+    if (!data?.token) {
+      throw new Error("Login did not return an authentication token.");
+    }
+
     const session = {
       user: data.user,
-      token: data.token || null,
+      token: data.token,
     };
 
     sessionStorage.setItem("staysafe_auth", JSON.stringify(session));
@@ -39,9 +51,17 @@ export function AuthProvider({ children }) {
   const register = useCallback(async (username, email, password) => {
     const data = await apiRegister(username, email, password);
 
+    // Backend registration currently returns only user info.
+    // If token is missing, perform login to obtain JWT for protected endpoints.
+    const authData = data?.token ? data : await apiLogin(email, password);
+
+    if (!authData?.token) {
+      throw new Error("Registration succeeded but authentication token is missing.");
+    }
+
     const session = {
-      user: data.user,
-      token: data.token || null,
+      user: authData.user ?? data.user,
+      token: authData.token,
     };
 
     sessionStorage.setItem("staysafe_auth", JSON.stringify(session));

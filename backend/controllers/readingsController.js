@@ -3,11 +3,10 @@ import { getSensorControl } from "../dao/sensorControlsDao.js";
 import { createAlert, listAlerts } from "../dao/alertsDao.js";
 import { dbSelectDeviceById } from "../db.js";
 
-const VALID_SENSOR_TYPES = ["temperature", "humidity", "light"];
+const VALID_SENSOR_TYPES = ["temperature", "light"];
 
 const DEFAULT_THRESHOLDS = {
   temperature: { min: 10, max: 35 },
-  humidity:    { min: 20, max: 65 },
   light:       { min: 0,  max: 5  },
 };
 
@@ -116,6 +115,14 @@ export async function getReadings(req, res) {
 
   if (filters.offset !== undefined && (!Number.isInteger(filters.offset) || filters.offset < 0)) {
     return res.status(400).json({ error: "offset must be a non-negative integer" });
+  }
+
+  if (filters.sensorType && !VALID_SENSOR_TYPES.includes(filters.sensorType)) {
+    return res.status(400).json({ error: `sensorType must be one of: ${VALID_SENSOR_TYPES.join(", ")}` });
+  }
+
+  if (!filters.sensorType) {
+    filters.sensorTypes = VALID_SENSOR_TYPES;
   }
 
   // Verify the device belongs to the authenticated user

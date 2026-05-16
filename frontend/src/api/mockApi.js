@@ -10,10 +10,9 @@ const MOCK_DEVICE = {
   updated_at: new Date().toISOString(),
 };
 
-let _mockSensorEnabled = { temperature: true, humidity: true, light: true };
+let _mockSensorEnabled = { temperature: true, light: true };
 let _mockThresholds = {
   temperature: { min: null, max: null },
-  humidity: { min: null, max: null },
   light: { min: null, max: null },
 };
 let _mockProtectionEnabled = true;
@@ -28,14 +27,6 @@ let _mockAlerts = [
   },
   {
     id: 2,
-    deviceId: 1,
-    sensorType: "humidity",
-    message: "humidity anomaly: 3 consecutive readings below minimum threshold (20). Latest value: 17.4.",
-    triggeredAt: new Date(Date.now() - 35 * 60_000).toISOString(),
-    isRead: false,
-  },
-  {
-    id: 3,
     deviceId: 1,
     sensorType: "light",
     message: "light anomaly: 3 consecutive readings above maximum threshold (5). Latest value: 41.0.",
@@ -94,10 +85,10 @@ export async function getHistoryReadings(
 
 export async function getAllSensorReadings(limit = 150, deviceId = 1, offset = 0) {
   void deviceId;
-  const types = ["temperature", "humidity", "light"];
+  const types = ["temperature", "light"];
   const all = [];
   for (const type of types) {
-    all.push(...generateReadings(type, Math.ceil(limit / 3), 1));
+    all.push(...generateReadings(type, Math.ceil(limit / types.length), 1));
   }
   const sorted = all.sort(
     (a, b) => new Date(b.recordedAt) - new Date(a.recordedAt),
@@ -250,14 +241,13 @@ export async function getDevices() {
   return { total: 1, data: [MOCK_DEVICE] };
 }
 
-export async function createDevice(name = "My Device", location, selectedSensors) {
-  const all = ["temperature", "humidity", "light"];
+export async function createDevice(name = "My Device", location) {
+  const all = ["temperature", "light"];
   _mockSensorEnabled = Object.fromEntries(
-    all.map((s) => [s, !selectedSensors || selectedSensors.includes(s)]),
+    all.map((s) => [s, true]),
   );
   _mockThresholds = {
     temperature: { min: null, max: null },
-    humidity: { min: null, max: null },
     light: { min: null, max: null },
   };
   _mockProtectionEnabled = true;

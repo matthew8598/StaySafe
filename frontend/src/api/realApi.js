@@ -1,5 +1,10 @@
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 const DEFAULT_DEVICE_ID = Number(import.meta.env.VITE_DEFAULT_DEVICE_ID) || 1;
+const SUPPORTED_SENSOR_TYPES = ["temperature", "light"];
+
+function isSupportedSensorType(sensorType) {
+  return SUPPORTED_SENSOR_TYPES.includes(sensorType);
+}
 
 /** Read the JWT from the same sessionStorage key AuthContext uses. */
 function getToken() {
@@ -59,7 +64,9 @@ export async function getAllSensorReadings(limit = 150, deviceId = DEFAULT_DEVIC
     limit,
     offset,
   });
-  return rows.map(r => ({ ...r, value: parseFloat(r.value) }));
+  return rows
+    .filter((row) => isSupportedSensorType(row.sensorType))
+    .map(r => ({ ...r, value: parseFloat(r.value) }));
 }
 
 export async function getReadingsByDateRange(sensorType, from, to, deviceId = DEFAULT_DEVICE_ID) {
@@ -135,7 +142,12 @@ export async function getAlerts(deviceId = DEFAULT_DEVICE_ID, options = {}) {
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to fetch alerts: ${res.status}`);
-  return res.json();
+  const rows = await res.json();
+  return rows.filter((row) => (
+    row.sensorType === "system"
+    || row.sensorType === "offline"
+    || isSupportedSensorType(row.sensorType)
+  ));
 }
 
 export async function resolveAlert(alertId) {
@@ -155,11 +167,11 @@ export async function getDevices() {
   return res.json(); // { total, data }
 }
 
-export async function createDevice(name, location, selectedSensors) {
+export async function createDevice(name, location) {
   const res = await fetch(`${BASE_URL}/devices`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ name, location, selectedSensors }),
+    body: JSON.stringify({ name, location }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to create device");
