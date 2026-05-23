@@ -1,1 +1,0 @@
-//Placeholder for endpoint related functions
