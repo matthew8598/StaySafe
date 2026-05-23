@@ -1,4 +1,4 @@
-const DEFAULT_DB_TIME_ZONE = "Europe/Bratislava";
+const DEFAULT_DB_TIME_ZONE = "UTC";
 
 export const DB_TIME_ZONE = process.env.DB_TIME_ZONE || process.env.APP_TIME_ZONE || DEFAULT_DB_TIME_ZONE;
 
