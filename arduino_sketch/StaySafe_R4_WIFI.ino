@@ -256,11 +256,11 @@ void sendDataViaUSB(float temperature, int light) {
 String getISO8601Timestamp() {
   // Simple timestamp simulation
   // In production, use RTC module (DS3231) for accurate time
-  unsigned long epochTime = 1713607200;  // 2026-04-20T12:00:00Z
+  unsigned long epochTime = 1716458400;  // 2026-05-23T12:00:00Z
   unsigned long adjustedTime = epochTime + (millis() / 1000);
 
   char timestamp[25];
-  sprintf(timestamp, "2026-04-20T%02d:%02d:%02dZ",
+  sprintf(timestamp, "2026-05-23T%02d:%02d:%02dZ",
           (millis() / 3600000) % 24,
           (millis() / 60000) % 60,
           (millis() / 1000) % 60);
