@@ -11,7 +11,6 @@ const DEFAULT_THRESHOLDS = {
   light:       { min: 0,  max: 5  },
 };
 
-const ALERT_STREAK_SIZE = 3;
 const AVERAGE_WINDOW_MS = 10_000;
 const SUDDEN_CHANGE_RANGE_FACTOR = 0.2;
 
@@ -71,6 +70,17 @@ async function getWindowAverages(deviceId, sensorType, currentAt, timeField = "r
   };
 }
 
+async function hasUnresolvedAlert(deviceId, sensorType) {
+  const unresolved = await listAlerts({
+    deviceId,
+    sensorType,
+    isRead: false,
+    limit: 1,
+  });
+
+  return unresolved.length > 0;
+}
+
 export async function postReading(req, res) {
   const { timestamp, ...sensorFields } = req.body;
   const deviceId = Number(req.body.deviceId);
@@ -118,39 +128,14 @@ export async function postReading(req, res) {
 
     if (Number.isFinite(threshMin) && Number.isFinite(threshMax)) {
       const currentDirection = getViolationDirection(value, threshMin, threshMax);
-      if (currentDirection) {
-        const streak = await listReadings({
+      if (currentDirection && !(await hasUnresolvedAlert(deviceId, sensorType))) {
+        const threshold = currentDirection === "below" ? threshMin : threshMax;
+        const directionText = currentDirection === "below" ? "below minimum" : "above maximum";
+        await createAlert({
           deviceId,
           sensorType,
-          limit: ALERT_STREAK_SIZE,
-          sortBy: "createdAt",
+          message: `${sensorType} anomaly: reading ${directionText} threshold (${threshold}). Latest value: ${value}.`,
         });
-
-        if (streak.length === ALERT_STREAK_SIZE) {
-          const sameDirectionStreak = streak.every((entry) => {
-            const entryDirection = getViolationDirection(Number(entry.value), threshMin, threshMax);
-            return entryDirection === currentDirection;
-          });
-
-          if (sameDirectionStreak) {
-            const unresolved = await listAlerts({
-              deviceId,
-              sensorType,
-              isRead: false,
-              limit: 1,
-            });
-
-            if (unresolved.length === 0) {
-              const threshold = currentDirection === "below" ? threshMin : threshMax;
-              const directionText = currentDirection === "below" ? "below minimum" : "above maximum";
-              await createAlert({
-                deviceId,
-                sensorType,
-                message: `${sensorType} anomaly: ${ALERT_STREAK_SIZE} consecutive readings ${directionText} threshold (${threshold}). Latest value: ${value}.`,
-              });
-            }
-          }
-        }
       }
 
       const thresholdRange = threshMax - threshMin;
@@ -160,21 +145,12 @@ export async function postReading(req, res) {
           const averageDelta = Math.abs(averages.currentAverage - averages.previousAverage);
           const suddenChangeLimit = thresholdRange * SUDDEN_CHANGE_RANGE_FACTOR;
 
-          if (averageDelta >= suddenChangeLimit) {
-            const unresolved = await listAlerts({
+          if (averageDelta >= suddenChangeLimit && !(await hasUnresolvedAlert(deviceId, sensorType))) {
+            await createAlert({
               deviceId,
               sensorType,
-              isRead: false,
-              limit: 1,
+              message: `${sensorType} sudden change: 10s average moved from ${averages.previousAverage.toFixed(2)} to ${averages.currentAverage.toFixed(2)} (delta ${averageDelta.toFixed(2)}), exceeding 20% of threshold range (${suddenChangeLimit.toFixed(2)}).`,
             });
-
-            if (unresolved.length === 0) {
-              await createAlert({
-                deviceId,
-                sensorType,
-                message: `${sensorType} sudden change: 10s average moved from ${averages.previousAverage.toFixed(2)} to ${averages.currentAverage.toFixed(2)} (delta ${averageDelta.toFixed(2)}), exceeding 20% of threshold range (${suddenChangeLimit.toFixed(2)}).`,
-              });
-            }
           }
         }
       }
