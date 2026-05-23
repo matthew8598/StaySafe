@@ -8,6 +8,7 @@ import { useAlertCenter } from '../context/AlertCenterContext';
 import {
   getReadingsByDateRange,
   getSensorStatus,
+  SENSOR_CONFIG,
   SUPPORTED_SENSOR_TYPES,
   setThresholds,
   getProtectionStatus,
@@ -65,7 +66,7 @@ export default function Dashboard() {
         return {
           readings,
           current,
-          status: current !== null ? getSensorStatus(type, current) : 'ok',
+          status: current !== null ? getSensorStatus(type, current, deviceId) : 'ok',
         };
       }
 
@@ -77,23 +78,28 @@ export default function Dashboard() {
       ));
       setProtection(protStatus.isEnabled);
 
-      if (controls.length > 0) {
-        const enabled = { ...INITIAL_ENABLED };
-        controls.forEach((c) => {
-          if (c.sensorType in enabled) {
-            enabled[c.sensorType] = c.isEnabled;
+      const enabled = { ...INITIAL_ENABLED };
+      const controlByType = new Map(controls.map((control) => [control.sensorType, control]));
 
-            if (
-              typeof c.thresholdMin === "number"
-              && typeof c.thresholdMax === "number"
-              && c.thresholdMin < c.thresholdMax
-            ) {
-              setThresholds(c.sensorType, c.thresholdMin, c.thresholdMax);
-            }
-          }
-        });
-        setSensorEnabled(enabled);
-      }
+      SUPPORTED_SENSOR_TYPES.forEach((sensorType) => {
+        const control = controlByType.get(sensorType);
+        const hasThresholds = typeof control?.thresholdMin === "number"
+          && typeof control?.thresholdMax === "number"
+          && control.thresholdMin < control.thresholdMax;
+
+        if (control?.sensorType in enabled) {
+          enabled[sensorType] = control.isEnabled;
+        }
+
+        if (hasThresholds) {
+          setThresholds(sensorType, control.thresholdMin, control.thresholdMax, deviceId);
+          return;
+        }
+
+        setThresholds(sensorType, SENSOR_CONFIG[sensorType].okMin, SENSOR_CONFIG[sensorType].okMax, deviceId);
+      });
+
+      setSensorEnabled(enabled);
 
       setLoading(false);
     }
@@ -255,6 +261,7 @@ export default function Dashboard() {
             key={type}
             type={type}
             data={sensorData[type]}
+            thresholdScopeKey={deviceId}
             enabled={sensorEnabled[type]}
             onToggleEnabled={value => handleSensorToggle(type, value)}
             onClick={() => navigate(`/sensor/${type}`)}

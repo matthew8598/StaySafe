@@ -112,7 +112,7 @@ function SensorHistoryChart({ type, deviceId }) {
   }
 
   const gradId = `hist-grad-${type}`;
-  const thresholds = getThresholds(type);
+  const thresholds = getThresholds(type, deviceId);
   const avg = chartData.length
     ? parseFloat((chartData.reduce((s, d) => s + d.value, 0) / chartData.length).toFixed(1))
     : null;
@@ -312,7 +312,7 @@ export default function History() {
         SUPPORTED_SENSOR_TYPES.map((sensorType, index) => [
           sensorType,
           sensorReadings[index].filter(
-            (reading) => getSensorStatus(sensorType, reading.value) === 'alert',
+            (reading) => getSensorStatus(sensorType, reading.value, deviceId) === 'alert',
           ).length,
         ]),
       );
@@ -456,7 +456,7 @@ export default function History() {
             <tbody>
               {filtered.map((r, i) => {
                 const cfg = SENSOR_CONFIG[r.sensorType];
-                const s = getSensorStatus(r.sensorType, r.value);
+                const s = getSensorStatus(r.sensorType, r.value, deviceId);
                 return (
                   <tr key={`${r.id ?? 'r'}-${i}`}>
                     <td className="td-mono">{formatDateTime(r.recordedAt)}</td>

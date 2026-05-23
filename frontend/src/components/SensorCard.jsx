@@ -22,7 +22,7 @@ const SENSOR_ICONS = {
   ),
 };
 
-export default function SensorCard({ type, data, enabled = true, onToggleEnabled, onClick }) {
+export default function SensorCard({ type, data, enabled = true, onToggleEnabled, onClick, thresholdScopeKey }) {
   const cfg = SENSOR_CONFIG[type];
   const { readings, current, status } = data;
   const isOk = status === 'ok';
@@ -94,7 +94,7 @@ export default function SensorCard({ type, data, enabled = true, onToggleEnabled
           color={cfg.color}
           unit={cfg.unit}
           gradId={`mini-${type}`}
-          thresholds={getThresholds(type)}
+          thresholds={getThresholds(type, thresholdScopeKey)}
         />
       </div>
 

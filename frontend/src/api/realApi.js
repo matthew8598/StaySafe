@@ -1,6 +1,7 @@
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 const DEFAULT_DEVICE_ID = Number(import.meta.env.VITE_DEFAULT_DEVICE_ID) || 1;
 const SUPPORTED_SENSOR_TYPES = ["temperature", "light"];
+const MAX_ACCEPTABLE_DEVICE_CLOCK_DRIFT_MS = 6 * 60 * 60 * 1000;
 
 function isSupportedSensorType(sensorType) {
   return SUPPORTED_SENSOR_TYPES.includes(sensorType);
@@ -25,8 +26,26 @@ function authHeaders(extra = {}) {
   };
 }
 
+function parseTimestamp(value) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function chooseDisplayTimestamp(row) {
+  const recordedAt = parseTimestamp(row.recordedAt);
+  const createdAt = parseTimestamp(row.createdAt);
+
+  if (!recordedAt) return row.createdAt || row.recordedAt;
+  if (!createdAt) return row.recordedAt;
+
+  const driftMs = Math.abs(recordedAt.getTime() - createdAt.getTime());
+  return driftMs <= MAX_ACCEPTABLE_DEVICE_CLOCK_DRIFT_MS
+    ? row.recordedAt
+    : row.createdAt;
+}
+
 function normalizeReading(row) {
-  const effectiveRecordedAt = row.createdAt || row.recordedAt;
+  const effectiveRecordedAt = chooseDisplayTimestamp(row);
 
   return {
     ...row,
@@ -83,14 +102,24 @@ export async function getAllSensorReadings(limit = 150, deviceId = DEFAULT_DEVIC
 }
 
 export async function getReadingsByDateRange(sensorType, from, to, deviceId = DEFAULT_DEVICE_ID) {
-  const rows = await fetchReadings({
+  const params = {
     deviceId,
     sensorType,
     from: new Date(from).toISOString(),
     to: new Date(to).toISOString(),
     timeField: "createdAt",
     sortBy: "createdAt",
-  });
+  };
+
+  let rows = await fetchReadings(params);
+  if (rows.length === 0) {
+    rows = await fetchReadings({
+      ...params,
+      timeField: "recordedAt",
+      sortBy: "recordedAt",
+    });
+  }
+
   // already ordered DESC from backend; reverse to oldest-first for charts
   return rows.map(normalizeReading).reverse();
 }

@@ -38,7 +38,11 @@ export const MOCK_USER = {
 
 // ─── Threshold management (persisted to localStorage) ────────────────────────
 
-const THRESH_KEY = "staysafe_thresholds";
+const THRESH_KEY = "staysafe_thresholds_v2";
+
+function getThresholdScopeKey(scopeKey) {
+  return scopeKey == null ? "global" : String(scopeKey);
+}
 
 function loadAllThresholds() {
   try {
@@ -48,8 +52,13 @@ function loadAllThresholds() {
   }
 }
 
-export function getThresholds(type) {
-  const stored = loadAllThresholds()[type];
+function getScopedThresholds(scopeKey) {
+  const all = loadAllThresholds();
+  return all[getThresholdScopeKey(scopeKey)] || {};
+}
+
+export function getThresholds(type, scopeKey) {
+  const stored = getScopedThresholds(scopeKey)[type];
   const cfg = SENSOR_CONFIG[type];
   return {
     min: stored?.min ?? cfg?.okMin ?? 0,
@@ -57,15 +66,18 @@ export function getThresholds(type) {
   };
 }
 
-export function setThresholds(type, min, max) {
+export function setThresholds(type, min, max, scopeKey) {
   const all = loadAllThresholds();
-  all[type] = { min: parseFloat(min), max: parseFloat(max) };
+  const resolvedScopeKey = getThresholdScopeKey(scopeKey);
+  const scoped = all[resolvedScopeKey] || {};
+  scoped[type] = { min: parseFloat(min), max: parseFloat(max) };
+  all[resolvedScopeKey] = scoped;
   localStorage.setItem(THRESH_KEY, JSON.stringify(all));
 }
 
 // ─── Status check (uses custom thresholds) ────────────────────────────────────
 
-export function getSensorStatus(sensorType, value) {
-  const { min, max } = getThresholds(sensorType);
+export function getSensorStatus(sensorType, value, scopeKey) {
+  const { min, max } = getThresholds(sensorType, scopeKey);
   return value >= min && value <= max ? "ok" : "alert";
 }

@@ -75,6 +75,7 @@ export default function SensorDetail() {
   const { type } = useParams();
   const navigate = useNavigate();
   const { device, deviceChecked } = useAuth();
+  const deviceId = device?.id;
   const cfg = SENSOR_CONFIG[type];
   const isValidSensorType = SUPPORTED_SENSOR_TYPES.includes(type);
 
@@ -83,7 +84,7 @@ export default function SensorDetail() {
   const [rangeIndex, setRangeIndex] = useState(0);
 
   // ── Threshold editor state ──
-  const [thresholds, setThresholdsState] = useState(() => getThresholds(type));
+  const [thresholds, setThresholdsState] = useState(() => getThresholds(type, deviceId));
   const [editMin, setEditMin] = useState('');
   const [editMax, setEditMax] = useState('');
   const [threshSaved, setThreshSaved] = useState(false);
@@ -91,11 +92,11 @@ export default function SensorDetail() {
 
   // Re-load thresholds if sensor type changes (e.g. via back-nav)
   useEffect(() => {
-    const t = getThresholds(type);
+    const t = getThresholds(type, deviceId);
     setThresholdsState(t);
     setEditMin(String(t.min));
     setEditMax(String(t.max));
-  }, [type]);
+  }, [type, deviceId]);
 
   async function handleSaveThresholds() {
     const mn = parseFloat(editMin);
@@ -110,7 +111,7 @@ export default function SensorDetail() {
         await setSensorThresholds(type, mn, mx, device.id);
       }
 
-      setThresholds(type, mn, mx);
+      setThresholds(type, mn, mx, device?.id);
       setThresholdsState({ min: mn, max: mx });
       setThreshSaved(true);
       setTimeout(() => setThreshSaved(false), 2000);
@@ -156,11 +157,21 @@ export default function SensorDetail() {
           && typeof control.thresholdMax === 'number'
           && control.thresholdMin < control.thresholdMax
         ) {
-          setThresholds(type, control.thresholdMin, control.thresholdMax);
+          setThresholds(type, control.thresholdMin, control.thresholdMax, device.id);
           setThresholdsState({ min: control.thresholdMin, max: control.thresholdMax });
           setEditMin(String(control.thresholdMin));
           setEditMax(String(control.thresholdMax));
+          return;
         }
+
+        const fallback = {
+          min: cfg?.okMin ?? 0,
+          max: cfg?.okMax ?? 100,
+        };
+        setThresholds(type, fallback.min, fallback.max, device.id);
+        setThresholdsState(fallback);
+        setEditMin(String(fallback.min));
+        setEditMax(String(fallback.max));
       } catch {
         // Ignore threshold sync failures to keep detail page usable.
       }
@@ -184,7 +195,7 @@ export default function SensorDetail() {
   if (!isValidSensorType) return null;
 
   const current = readings.length ? readings[readings.length - 1].value : undefined;
-  const status = current !== undefined ? getSensorStatus(type, current) : 'ok';
+  const status = current !== undefined ? getSensorStatus(type, current, deviceId) : 'ok';
 
   const values = readings.map(r => r.value);
   const minVal = values.length ? Math.min(...values).toFixed(1) : '—';
@@ -405,7 +416,7 @@ export default function SensorDetail() {
             </thead>
             <tbody>
               {[...readings].reverse().slice(0, 25).map((r, i) => {
-                const s = getSensorStatus(type, r.value);
+                const s = getSensorStatus(type, r.value, deviceId);
                 return (
                   <tr key={i}>
                     <td className="td-mono">{formatDateTime(r.recordedAt)}</td>

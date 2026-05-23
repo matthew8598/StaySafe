@@ -6,9 +6,14 @@ import {
   resolveAlert,
 } from "../dao/alertsDao.js";
 import { listReadings } from "../dao/readingsDao.js";
+import { getAllSensorControls } from "../dao/sensorControlsDao.js";
 import { dbSelectDeviceById } from "../db.js";
 
 const SUPPORTED_SENSOR_TYPES = ["temperature", "light"];
+const DEFAULT_THRESHOLDS = {
+  temperature: { min: 10, max: 35 },
+  light: { min: 0, max: 5 },
+};
 
 function isSupportedSensorType(sensorType) {
   return SUPPORTED_SENSOR_TYPES.includes(sensorType);
@@ -20,6 +25,88 @@ const OFFLINE_MULTIPLIER = 2;
 function getConfiguredSendIntervalMs() {
   const configured = Number(process.env.DEVICE_SEND_INTERVAL_MS ?? process.env.ARDUINO_INTERVAL_MS);
   return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_SEND_INTERVAL_MS;
+}
+
+function getViolationDirection(value, min, max) {
+  if (value < min) return "below";
+  if (value > max) return "above";
+  return null;
+}
+
+function maybeBuildThresholdAlertPayload(reading, controlsByType) {
+  if (!reading || !isSupportedSensorType(reading.sensorType)) return null;
+
+  const globalControl = controlsByType.get("all");
+  const sensorControl = controlsByType.get(reading.sensorType);
+  const isGlobalEnabled = globalControl?.isEnabled ?? true;
+  const isSensorEnabled = sensorControl?.isEnabled ?? true;
+
+  if (!isGlobalEnabled || !isSensorEnabled) return null;
+
+  const thresholds = {
+    min: sensorControl?.thresholdMin ?? DEFAULT_THRESHOLDS[reading.sensorType]?.min,
+    max: sensorControl?.thresholdMax ?? DEFAULT_THRESHOLDS[reading.sensorType]?.max,
+  };
+
+  if (!Number.isFinite(thresholds.min) || !Number.isFinite(thresholds.max)) {
+    return null;
+  }
+
+  const numericValue = Number(reading.value);
+  const direction = getViolationDirection(numericValue, thresholds.min, thresholds.max);
+  if (!direction) return null;
+
+  const threshold = direction === "below" ? thresholds.min : thresholds.max;
+  const directionText = direction === "below" ? "below minimum" : "above maximum";
+
+  return {
+    sensorType: reading.sensorType,
+    message: `${reading.sensorType} anomaly: reading ${directionText} threshold (${threshold}). Latest value: ${numericValue}.`,
+  };
+}
+
+async function ensureCurrentThresholdAlerts(deviceId, sensorType, existingAlerts) {
+  const controls = await getAllSensorControls(Number(deviceId));
+  const controlsByType = new Map(controls.map((control) => [control.sensorType, control]));
+  const targetSensorTypes = sensorType && isSupportedSensorType(sensorType)
+    ? [sensorType]
+    : SUPPORTED_SENSOR_TYPES;
+  const activePersistedAlerts = new Set(
+    existingAlerts
+      .filter((alert) => alert.isRead === false)
+      .map((alert) => alert.sensorType),
+  );
+
+  const createdAlerts = [];
+
+  for (const currentSensorType of targetSensorTypes) {
+    if (activePersistedAlerts.has(currentSensorType)) {
+      continue;
+    }
+
+    const [latestReading] = await listReadings({
+      deviceId: Number(deviceId),
+      sensorType: currentSensorType,
+      limit: 1,
+      sortBy: "createdAt",
+    });
+
+    const alertPayload = maybeBuildThresholdAlertPayload(latestReading, controlsByType);
+    if (!alertPayload) {
+      continue;
+    }
+
+    const createdAlert = await createAlert({
+      deviceId: Number(deviceId),
+      sensorType: alertPayload.sensorType,
+      message: alertPayload.message,
+    });
+
+    createdAlerts.push(createdAlert);
+    activePersistedAlerts.add(currentSensorType);
+  }
+
+  return createdAlerts;
 }
 
 function maybeBuildOfflineAlert(deviceId, latestReading) {
@@ -116,7 +203,9 @@ export async function listAlertsController(req, res) {
     }
 
     const wantsOffline = !sensorType || sensorType === "system" || sensorType === "offline";
+    const wantsThreshold = !sensorType || isSupportedSensorType(sensorType);
     const shouldIncludeOffline = parsedIsRead !== true && wantsOffline;
+    const shouldEnsureThresholdAlerts = parsedIsRead !== true && wantsThreshold;
     const daoLimit = shouldIncludeOffline && parsedLimit !== undefined
       ? parsedLimit + 1
       : parsedLimit;
@@ -139,6 +228,7 @@ export async function listAlertsController(req, res) {
       || alert.sensorType === "offline"
       || isSupportedSensorType(alert.sensorType)
     ));
+
     if (shouldIncludeOffline) {
       const [latestReading] = await listReadings({
         deviceId: Number(deviceId),
@@ -148,6 +238,15 @@ export async function listAlertsController(req, res) {
       const offlineAlert = maybeBuildOfflineAlert(Number(deviceId), latestReading);
       if (offlineAlert) {
         mergedAlerts = [offlineAlert, ...mergedAlerts].sort(
+          (a, b) => new Date(b.triggeredAt).getTime() - new Date(a.triggeredAt).getTime(),
+        );
+      }
+    }
+
+    if (shouldEnsureThresholdAlerts) {
+      const createdThresholdAlerts = await ensureCurrentThresholdAlerts(Number(deviceId), sensorType, mergedAlerts);
+      if (createdThresholdAlerts.length > 0) {
+        mergedAlerts = [...createdThresholdAlerts, ...mergedAlerts].sort(
           (a, b) => new Date(b.triggeredAt).getTime() - new Date(a.triggeredAt).getTime(),
         );
       }
