@@ -11,13 +11,15 @@ const SENSOR_UNITS = {
 };
 
 // Arduino sends { deviceId, temperature|humidity|light, timestamp }
+// Note: We use server time (new Date()) instead of Arduino's timestamp
+// because Arduino doesn't have an RTC and only tracks uptime via millis()
 export async function createReading(payload) {
   const { deviceId, timestamp, ...sensorFields } = payload;
 
   const sensorType = Object.keys(sensorFields).find((k) => k in SENSOR_UNITS);
   const value = sensorFields[sensorType];
   const unit = SENSOR_UNITS[sensorType];
-  const recordedAt = new Date(timestamp);
+  const recordedAt = new Date();  // Use server's current time instead of Arduino's
 
   const insertId = await dbInsertReading(deviceId, sensorType, value, unit, recordedAt);
   return getReadingById(insertId);
