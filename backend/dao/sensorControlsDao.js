@@ -3,6 +3,7 @@ import {
   dbSelectSensorControls,
   dbUpsertSensorControl,
 } from "../db.js";
+import { fromDbTimestamp } from "../dbTime.js";
 
 function mapControl(row) {
   const isEnabled = typeof row.is_enabled === "boolean"
@@ -17,7 +18,7 @@ function mapControl(row) {
     isEnabled,
     thresholdMin: row.threshold_min !== null ? parseFloat(row.threshold_min) : null,
     thresholdMax: row.threshold_max !== null ? parseFloat(row.threshold_max) : null,
-    changedAt: row.changed_at,
+    changedAt: fromDbTimestamp(row.changed_at),
   };
 }
 

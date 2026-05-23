@@ -5,6 +5,7 @@ import {
   dbDeleteAlert,
   dbMarkAlertAsRead,
 } from "../db.js";
+import { fromDbTimestamp, toDbTimestamp } from "../dbTime.js";
 
 export async function createAlert(alert) {
   const { deviceId, sensorType, message } = alert;
@@ -37,12 +38,12 @@ export async function listAlerts(filters = {}) {
 
   if (filters.from) {
     conditions.push("triggered_at >= ?");
-    values.push(new Date(filters.from));
+    values.push(toDbTimestamp(filters.from));
   }
 
   if (filters.to) {
     conditions.push("triggered_at <= ?");
-    values.push(new Date(filters.to));
+    values.push(toDbTimestamp(filters.to));
   }
 
   const rows = await dbSelectAlerts(conditions, values, filters.limit ?? null);
@@ -70,7 +71,7 @@ function mapAlert(row) {
     deviceId: row.device_id,
     sensorType: row.sensor_type,
     message: row.message,
-    triggeredAt: row.triggered_at,
+    triggeredAt: fromDbTimestamp(row.triggered_at),
     isRead: row.is_read,
   };
 }

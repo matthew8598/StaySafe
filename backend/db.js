@@ -5,7 +5,11 @@ const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.en
 dotenv.config({ path: envFile });
 dotenv.config({ path: '.env' });
 
-const { Pool } = pg;
+const { Pool, types } = pg;
+
+const PG_TIMESTAMP_OID = 1114;
+
+types.setTypeParser(PG_TIMESTAMP_OID, (value) => value);
 
 const pool = new Pool({
   host: process.env.DB_HOST,

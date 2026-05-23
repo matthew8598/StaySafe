@@ -3,6 +3,7 @@ import {
   dbSelectReadingById,
   dbSelectReadings,
 } from "../db.js";
+import { fromDbTimestamp, toDbTimestamp } from "../dbTime.js";
 
 const SENSOR_UNITS = {
   temperature: "°C",
@@ -21,7 +22,7 @@ export async function createReading(payload) {
   const sensorType = Object.keys(sensorFields).find((k) => k in SENSOR_UNITS);
   const value = sensorFields[sensorType];
   const unit = SENSOR_UNITS[sensorType];
-  const recordedAt = new Date(timestamp);
+  const recordedAt = toDbTimestamp(timestamp);
 
   const insertId = await dbInsertReading(deviceId, sensorType, value, unit, recordedAt);
   return getReadingById(insertId);
@@ -54,12 +55,12 @@ export async function listReadings(filters = {}) {
 
   if (filters.from) {
     conditions.push(`${timeColumn} >= ?`);
-    values.push(new Date(filters.from));
+    values.push(toDbTimestamp(filters.from));
   }
 
   if (filters.to) {
     conditions.push(`${timeColumn} <= ?`);
-    values.push(new Date(filters.to));
+    values.push(toDbTimestamp(filters.to));
   }
 
   const rows = await dbSelectReadings(
@@ -79,7 +80,7 @@ function mapReading(row) {
     sensorType: row.sensor_type,
     value: row.value,
     unit: row.unit,
-    recordedAt: row.recorded_at,
-    createdAt: row.created_at,
+    recordedAt: fromDbTimestamp(row.recorded_at),
+    createdAt: fromDbTimestamp(row.created_at),
   };
 }
