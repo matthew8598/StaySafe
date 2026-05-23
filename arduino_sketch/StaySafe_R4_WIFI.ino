@@ -54,6 +54,9 @@ void setup() {
   Serial.println("\n=== StaySafe Arduino R4 WIFI ===");
   Serial.println("Initializing...");
 
+  // Configure ADC for 14-bit resolution (0-16383)
+  analogReadResolution(14);
+
   // Initialize WiFi
   connectToWiFi();
 }
@@ -163,9 +166,12 @@ float calculateAverage() {
 int getLightPercentage() {
   int rawValue = analogRead(LIGHT_SENSOR_PIN);
 
-  // Calibration for your environment
-  int lightMin = 150;   // Brightest reading (sunlight)
-  int lightMax = 900;   // Darkest reading (darkness)
+  // Calibration for your environment (14-bit ADC: 0-16383)
+  // Tested with phototransistor:
+  //   ~1400 ADC = dim ambient light (~0.43V)
+  //  ~10400 ADC = bright light with torch (~3.2V)
+  int lightMin = 1200;    // Brightest reading (bright light)
+  int lightMax = 15000;   // Darkest reading (near darkness)
 
   // Constrain to calibrated range
   rawValue = constrain(rawValue, lightMin, lightMax);
