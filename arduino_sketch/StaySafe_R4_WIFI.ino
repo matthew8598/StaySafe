@@ -1,69 +1,69 @@
 /*
  * StaySafe - Arduino R4 WIFI sketch
  *
- * Posílá senzorová data na backend API
- * POST http://staysafe.local:3000/api/readings
+ * Sends sensor data to backend API via WiFi
+ * POST http://[server-ip]:3000/api/readings
  *
- * Automaticky descobuje backend přes mDNS
- * (Backend musí být publikován jako "staysafe.local")
+ * Uses direct IP address (no mDNS needed)
+ * Collects 10 samples over 10 seconds, then sends average
  */
 
 #include <WiFiS3.h>
 #include <ArduinoJson.h>
 
-// ===== WiFi Konfigurace =====
+// ===== WiFi Configuration =====
 struct WiFiNetwork {
   const char* ssid;
   const char* password;
 };
 
 WiFiNetwork networks[] = {
-  {"Vodafone-9EB4", "pMMbh47u7qdBbH6h"},
-  {"T-920814", "phuchmdhbe4e"}
+  {"T-5DJBL9", "k621uh8bflnx"},
 };
 const int NETWORK_COUNT = sizeof(networks) / sizeof(networks[0]);
 
-const char* serverHostname = "staysafe.local";  // mDNS hostname backendu
+// ===== Backend Server Configuration =====
+IPAddress serverIP(192, 168, 1, 48);  // Your Mac IP - UPDATE THIS if IP changes!
 int serverPort = 3000;
-IPAddress serverIP;                             // Bude vyřešen dynamicky
 
-// ===== Device konfigurace =====
-const int DEVICE_ID = 1;                   // Device ID z databáze
-const int SEND_INTERVAL = 10000;           // Interval mezi odesláním (ms) = 10 sekund
-const char* SENSOR_TYPE = "temperature";   // Typ senzoru: temperature, humidity, light
+// ===== Device Configuration =====
+const int DEVICE_ID = 1;              // Device ID from database
+const int SEND_INTERVAL = 10000;      // Send every 10 seconds (ms)
 
-// ===== Piny senzorů (příklad) =====
-const int TEMP_SENSOR_PIN = A0;            // Analog pin pro teplotní senzor
-const int HUMIDITY_SENSOR_PIN = A1;        // Analog pin pro vlhkostní senzor
-const int LIGHT_SENSOR_PIN = A2;           // Analog pin pro světelný senzor
+// ===== Sensor Pins =====
+const int TEMP_SENSOR_PIN = A0;       // LM35 temperature sensor
+const int LIGHT_SENSOR_PIN = A1;      // Phototransistor light sensor
+
+// ===== Sampling Configuration =====
+const int SAMPLE_COUNT = 10;          // 10 samples total
+const int SAMPLE_INTERVAL = 1000;     // 1 sample per second (1000ms)
+// Result: Collects 10 samples over 10 seconds, then averages and sends
+
+float temperatureSamples[SAMPLE_COUNT];
+int sampleIndex = 0;
+int samplesCollected = 0;
 
 unsigned long lastSendTime = 0;
 unsigned long lastReadTime = 0;
 WiFiClient client;
 
-// Priemer z více měření
-const int SAMPLE_COUNT = 10;  // Počet vzorků za sekundu
-float temperatureSamples[SAMPLE_COUNT];
-int sampleIndex = 0;
-int samplesCollected = 0;
-
 void setup() {
   Serial.begin(9600);
-  delay(3000);  // Čekej, než se Serial inicializuje
+  delay(3000);  // Wait for Serial to initialize
 
   Serial.println("\n=== StaySafe Arduino R4 WIFI ===");
   Serial.println("Initializing...");
 
-  // Inicializuj WiFi
+  // Initialize WiFi
   connectToWiFi();
 }
 
 void loop() {
-  // Sbírání vzorků - čti senzor každých 100ms (10x za sekundu)
-  if (millis() - lastReadTime >= 100) {
+  // Collect samples - read sensor every SAMPLE_INTERVAL ms (1 per second)
+  if (millis() - lastReadTime >= SAMPLE_INTERVAL) {
     lastReadTime = millis();
 
-    // Přečti senzor a ulož do bufferu
+    // Read sensor and store in buffer
     float temp = readTemperatureSensor();
     temperatureSamples[sampleIndex] = temp;
     sampleIndex = (sampleIndex + 1) % SAMPLE_COUNT;
@@ -73,32 +73,35 @@ void loop() {
     }
   }
 
-  // Kontroluj, je-li čas poslat data (každých SEND_INTERVAL ms)
+  // Check if it's time to send data (every SEND_INTERVAL ms)
   if (millis() - lastSendTime >= SEND_INTERVAL) {
     lastSendTime = millis();
 
-    // Vypočítej průměr z posledních vzorků
+    // Calculate average from samples
     float averageTemp = calculateAverage();
 
-    // Pošli průměr na server
-    sendDataToServer(averageTemp);
+    // Read current light level
+    int lightPercent = getLightPercentage();
+
+    // Send both sensors to server
+    sendDataToServer(averageTemp, lightPercent);
   }
 
-  // Měj WiFi připojení aktivní
+  // Keep WiFi connection active
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[WiFi] Připojení ztraceno! Reconnecting...");
+    Serial.println("[WiFi] Connection lost! Reconnecting...");
     connectToWiFi();
   }
 }
 
-// ===== WiFi Funkce =====
+// ===== WiFi Functions =====
 void connectToWiFi() {
   for (int i = 0; i < NETWORK_COUNT; i++) {
-    Serial.print("[WiFi] Pokus ");
+    Serial.print("[WiFi] Attempt ");
     Serial.print(i + 1);
     Serial.print("/");
     Serial.print(NETWORK_COUNT);
-    Serial.print(" - Připojuji se na: ");
+    Serial.print(" - Connecting to: ");
     Serial.println(networks[i].ssid);
 
     WiFi.begin(networks[i].ssid, networks[i].password);
@@ -111,37 +114,32 @@ void connectToWiFi() {
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("\n[WiFi] ✓ Připojeno!");
+      Serial.println("\n[WiFi] Connected!");
       Serial.print("[WiFi] SSID: ");
       Serial.println(networks[i].ssid);
       Serial.print("[WiFi] IP: ");
       Serial.println(WiFi.localIP());
       return;
     } else {
-      Serial.println("\n[WiFi] ✗ Selhalo!");
+      Serial.println("\n[WiFi] Failed!");
       WiFi.end();
     }
   }
 
-  Serial.println("[WiFi] ✗ Nepodařilo se připojit na žádnou síť!");
+  Serial.println("[WiFi] Could not connect to any network!");
 }
 
-// ===== Čtení senzoru =====
+// ===== Sensor Reading =====
 float readTemperatureSensor() {
-  // Senzor s inverzní polaritou
-  // Kalibrováno empiricky: raw ~165 = 22°C
-  // Malá změna raw = malá změna teploty (0.5°C na 1 raw)
-  // Vzorec: temperature = (165 - rawValue) * 0.5 + 22
-
   int rawValue = analogRead(TEMP_SENSOR_PIN);
 
-  // Lineární kalibrace
+  // Calibration formula (empirically tested)
   float temperature = (165.0 - rawValue) * 0.5 + 22.0;
 
   return temperature;
 }
 
-// ===== Výpočet průměru =====
+// ===== Calculate Average Temperature =====
 float calculateAverage() {
   float sum = 0.0;
   int count = min(samplesCollected, SAMPLE_COUNT);
@@ -152,96 +150,77 @@ float calculateAverage() {
 
   float average = sum / count;
 
-  Serial.print("[Průměr] ");
+  Serial.print("[Average] ");
   Serial.print(count);
-  Serial.print(" vzorků -> Teplota: ");
+  Serial.print(" samples -> Temperature: ");
   Serial.print(average);
   Serial.println("°C");
 
   return average;
 }
 
-// ===== Hostname resolution (mDNS) =====
-bool resolveMDNSHostname() {
-  // Pokus vyřešit hostname na IP adresu (DNS lookup)
-  // WiFiS3 knihovna podporuje WiFi.hostByName() pro mDNS
+// ===== Read Light Sensor =====
+int getLightPercentage() {
+  int rawValue = analogRead(LIGHT_SENSOR_PIN);
 
-  int attempts = 0;
-  const int MAX_ATTEMPTS = 3;
+  // Calibration for your environment
+  int lightMin = 150;   // Brightest reading (sunlight)
+  int lightMax = 900;   // Darkest reading (darkness)
 
-  while (attempts < MAX_ATTEMPTS) {
-    if (WiFi.hostByName(serverHostname, serverIP)) {
-      Serial.print("[mDNS] ✓ Vyřešeno! IP: ");
-      Serial.println(serverIP);
-      return true;
-    }
+  // Constrain to calibrated range
+  rawValue = constrain(rawValue, lightMin, lightMax);
 
-    Serial.print("[mDNS] Pokus ");
-    Serial.print(attempts + 1);
-    Serial.print("/");
-    Serial.println(MAX_ATTEMPTS);
+  // Map to 0-100%
+  int lightPercent = map(rawValue, lightMin, lightMax, 100, 0);
 
-    delay(500);
-    attempts++;
-  }
-
-  return false;
+  return lightPercent;
 }
 
-// ===== Odesílání na server =====
-void sendDataToServer(float sensorValue) {
-  // Vyřeš hostname na IP adresu
-  Serial.print("[mDNS] Hledám server: ");
-  Serial.println(serverHostname);
-
-  if (!resolveMDNSHostname()) {
-    Serial.println("[HTTP] ✗ Nelze vyřešit hostname!");
-    Serial.println("[USB] Fallback: Odesílám data přes USB na Mac...");
-    sendDataViaUSB(sensorValue);
-    return;
-  }
-
-  Serial.print("[HTTP] Připojuji se na server: ");
+// ===== Send Data to Server =====
+void sendDataToServer(float temperature, int light) {
+  // Connect to server using direct IP
+  Serial.print("[HTTP] Connecting to server: ");
   Serial.print(serverIP);
   Serial.print(":");
   Serial.println(serverPort);
 
   if (!client.connect(serverIP, serverPort)) {
-    Serial.println("[HTTP] ✗ Připojení selhalo!");
-    Serial.println("[USB] Fallback: Odesílám data přes USB na Mac...");
-    sendDataViaUSB(sensorValue);
+    Serial.println("[HTTP] Connection failed!");
+    Serial.println("[USB] Fallback: Sending data via USB...");
+    sendDataViaUSB(temperature, light);
     return;
   }
 
-  Serial.println("[HTTP] ✓ Připojeno, odesílám data...");
+  Serial.println("[HTTP] Connected, sending data...");
 
-  // Vytvoř JSON payload
+  // Create JSON payload
   StaticJsonDocument<256> doc;
   doc["deviceId"] = DEVICE_ID;
   doc["timestamp"] = getISO8601Timestamp();
-  doc[SENSOR_TYPE] = sensorValue;
+  doc["temperature"] = temperature;
+  doc["light"] = light;
 
-  // Serializuj JSON do stringu
+  // Serialize JSON to string
   String jsonPayload;
   serializeJson(doc, jsonPayload);
 
   Serial.print("[JSON] ");
   Serial.println(jsonPayload);
 
-  // Vytvoř HTTP POST request
+  // Create HTTP POST request
   String httpRequest = String("POST /api/readings HTTP/1.1\r\n") +
-                       "Host: " + serverHostname + ":" + serverPort + "\r\n" +
+                       "Host: " + serverIP.toString() + ":" + serverPort + "\r\n" +
                        "Content-Type: application/json\r\n" +
                        "Content-Length: " + jsonPayload.length() + "\r\n" +
                        "Connection: close\r\n" +
                        "\r\n" +
                        jsonPayload;
 
-  // Pošli request
+  // Send request
   client.print(httpRequest);
 
-  // Přečti odpověď
-  Serial.println("[HTTP] Čekám na odpověď...");
+  // Read response
+  Serial.println("[HTTP] Waiting for response...");
   while (client.connected()) {
     String line = client.readStringUntil('\n');
     if (line.length() > 0) {
@@ -251,39 +230,34 @@ void sendDataToServer(float sensorValue) {
   }
 
   client.stop();
-  Serial.println("[HTTP] ✓ Zařízení odpojeno\n");
+  Serial.println("[HTTP] Disconnected\n");
 }
 
-// ===== Odesílání přes USB (fallback) =====
-void sendDataViaUSB(float sensorValue) {
-  // Vytvoř JSON payload (stejný jako pro HTTP)
+// ===== USB Fallback =====
+void sendDataViaUSB(float temperature, int light) {
+  // Create JSON payload (same as HTTP)
   StaticJsonDocument<256> doc;
   doc["deviceId"] = DEVICE_ID;
   doc["timestamp"] = getISO8601Timestamp();
-  doc[SENSOR_TYPE] = sensorValue;
+  doc["temperature"] = temperature;
+  doc["light"] = light;
 
-  // Serializuj JSON do stringu
+  // Serialize JSON
   String jsonPayload;
   serializeJson(doc, jsonPayload);
 
-  // Pošli přes sériové rozhraní na Mac
-  // Formát: [USB_DATA] <json>
+  // Send via Serial
   Serial.print("[USB_DATA] ");
   Serial.println(jsonPayload);
-  Serial.println("[USB] ✓ Data odeslána přes USB\n");
+  Serial.println("[USB] Data sent via USB\n");
 }
 
-// ===== Pomocné funkce =====
+// ===== Helper Functions =====
 String getISO8601Timestamp() {
-  // Vrátí aktuální čas v ISO8601 formátu
-  // V produkci použij RTC modul (DS3231) pro přesný čas
-
-  // Jednoduchá simulace: vrátí fixní čas (+ milisekundy)
+  // Simple timestamp simulation
+  // In production, use RTC module (DS3231) for accurate time
   unsigned long epochTime = 1713607200;  // 2026-04-20T12:00:00Z
   unsigned long adjustedTime = epochTime + (millis() / 1000);
-
-  // Převod na ISO8601 je komplexní, proto vrátíme jednoduše
-  // V produkci použij knihovnu jako Time.h a RTC
 
   char timestamp[25];
   sprintf(timestamp, "2026-04-20T%02d:%02d:%02dZ",
@@ -294,7 +268,6 @@ String getISO8601Timestamp() {
   return String(timestamp);
 }
 
-// ===== Debug info =====
 void printWiFiStatus() {
   Serial.println("\n=== WiFi Status ===");
   Serial.print("SSID: ");

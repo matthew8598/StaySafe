@@ -17,48 +17,57 @@ export async function postReading(req, res) {
     return res.status(400).json({ error: "deviceId and timestamp are required" });
   }
 
-  const sensorType = Object.keys(sensorFields).find((k) =>
+  if (isNaN(Date.parse(timestamp))) {
+    return res.status(400).json({ error: "timestamp is not a valid ISO date" });
+  }
+
+  // Extract ALL sensor types from request (not just the first one)
+  const sensorTypes = Object.keys(sensorFields).filter((k) =>
     VALID_SENSOR_TYPES.includes(k),
   );
 
-  if (!sensorType) {
+  if (sensorTypes.length === 0) {
     return res
       .status(400)
       .json({ error: `Body must contain one of: ${VALID_SENSOR_TYPES.join(", ")}` });
   }
 
-  const value = sensorFields[sensorType];
-  if (typeof value !== "number") {
-    return res.status(400).json({ error: `${sensorType} must be a number` });
-  }
+  // Process each sensor type and create separate readings
+  const readings = [];
 
-  if (isNaN(Date.parse(timestamp))) {
-    return res.status(400).json({ error: "timestamp is not a valid ISO date" });
-  }
+  for (const sensorType of sensorTypes) {
+    const value = sensorFields[sensorType];
 
-  const reading = await createReading({ deviceId, timestamp, [sensorType]: value });
+    if (typeof value !== "number") {
+      return res.status(400).json({ error: `${sensorType} must be a number` });
+    }
 
-  // ── Alert check ──────────────────────────────────────────────────────────
-  const control = await getSensorControl(deviceId, sensorType);
+    const reading = await createReading({ deviceId, timestamp, [sensorType]: value });
+    readings.push(reading);
 
-  if (!control || control.isEnabled) {
-    const threshMin = control?.thresholdMin ?? DEFAULT_THRESHOLDS[sensorType]?.min;
-    const threshMax = control?.thresholdMax ?? DEFAULT_THRESHOLDS[sensorType]?.max;
+    // ── Alert check ──────────────────────────────────────────────────────────
+    const control = await getSensorControl(deviceId, sensorType);
 
-    if (threshMin !== undefined && threshMax !== undefined) {
-      if (value < threshMin || value > threshMax) {
-        const direction = value < threshMin ? "below minimum" : "above maximum";
-        const threshold = value < threshMin ? threshMin : threshMax;
-        await createAlert({
-          deviceId,
-          sensorType,
-          message: `${sensorType} value ${value} is ${direction} threshold (${threshold})`,
-        });
+    if (!control || control.isEnabled) {
+      const threshMin = control?.thresholdMin ?? DEFAULT_THRESHOLDS[sensorType]?.min;
+      const threshMax = control?.thresholdMax ?? DEFAULT_THRESHOLDS[sensorType]?.max;
+
+      if (threshMin !== undefined && threshMax !== undefined) {
+        if (value < threshMin || value > threshMax) {
+          const direction = value < threshMin ? "below minimum" : "above maximum";
+          const threshold = value < threshMin ? threshMin : threshMax;
+          await createAlert({
+            deviceId,
+            sensorType,
+            message: `${sensorType} value ${value} is ${direction} threshold (${threshold})`,
+          });
+        }
       }
     }
   }
 
-  res.status(201).json(reading);
+  // Return all created readings
+  res.status(201).json(readings.length === 1 ? readings[0] : readings);
 }
 
 export async function getReadings(req, res) {
