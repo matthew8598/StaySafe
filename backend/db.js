@@ -22,6 +22,10 @@ function toPositional(sql) {
   return sql.replace(/\?/g, () => `$${++i}`);
 }
 
+function getReadingOrderColumn(sortBy) {
+  return sortBy === "created_at" ? "created_at" : "recorded_at";
+}
+
 // ── SENSOR READINGS ───────────────────────────────────────────────────────────
 
 export async function dbInsertReading(deviceId, sensorType, value, unit, recordedAt) {
@@ -40,12 +44,12 @@ export async function dbSelectReadingById(id) {
   return result.rows[0] ?? null;
 }
 
-export async function dbSelectReadings(conditions = [], values = [], limit = null, offset = null) {
+export async function dbSelectReadings(conditions = [], values = [], limit = null, offset = null, sortBy = "recorded_at") {
   let sql = `SELECT id, device_id, sensor_type, value, unit, recorded_at, created_at FROM sensor_readings`;
   if (conditions.length > 0) {
     sql += " WHERE " + conditions.join(" AND ");
   }
-  sql += " ORDER BY recorded_at DESC";
+  sql += ` ORDER BY ${getReadingOrderColumn(sortBy)} DESC, id DESC`;
   if (limit !== null) {
     sql += ` LIMIT ${parseInt(limit, 10)}`;
   }

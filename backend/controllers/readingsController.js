@@ -4,6 +4,7 @@ import { createAlert, listAlerts } from "../dao/alertsDao.js";
 import { dbSelectDeviceById } from "../db.js";
 
 const VALID_SENSOR_TYPES = ["temperature", "light"];
+const VALID_TIME_FIELDS = ["recordedAt", "createdAt"];
 
 const DEFAULT_THRESHOLDS = {
   temperature: { min: 10, max: 35 },
@@ -24,8 +25,9 @@ function calculateAverage(values) {
   return values.reduce((sum, entry) => sum + entry, 0) / values.length;
 }
 
-async function getWindowAverages(deviceId, sensorType, recordedAt) {
-  const currentAtMs = recordedAt.getTime();
+async function getWindowAverages(deviceId, sensorType, currentAt, timeField = "recordedAt") {
+  const currentDate = currentAt instanceof Date ? currentAt : new Date(currentAt);
+  const currentAtMs = currentDate.getTime();
   const currentWindowStartMs = currentAtMs - AVERAGE_WINDOW_MS;
   const previousWindowStartMs = currentWindowStartMs - AVERAGE_WINDOW_MS;
 
@@ -33,14 +35,16 @@ async function getWindowAverages(deviceId, sensorType, recordedAt) {
     deviceId,
     sensorType,
     from: new Date(previousWindowStartMs).toISOString(),
-    to: recordedAt.toISOString(),
+    to: currentDate.toISOString(),
+    timeField,
+    sortBy: timeField,
   });
 
   const previousWindowValues = [];
   const currentWindowValues = [];
 
   readings.forEach((entry) => {
-    const entryAtMs = new Date(entry.recordedAt).getTime();
+    const entryAtMs = new Date(entry[timeField]).getTime();
     const numericValue = Number(entry.value);
 
     if (!Number.isFinite(entryAtMs) || !Number.isFinite(numericValue)) {
@@ -96,6 +100,9 @@ export async function postReading(req, res) {
   }
 
   const reading = await createReading({ deviceId, timestamp, [sensorType]: value });
+  const alertReferenceAt = Number.isNaN(new Date(reading?.createdAt).getTime())
+    ? recordedAt
+    : new Date(reading.createdAt);
 
   // ── Alert check ──────────────────────────────────────────────────────────
   const [globalControl, control] = await Promise.all([
@@ -116,6 +123,7 @@ export async function postReading(req, res) {
           deviceId,
           sensorType,
           limit: ALERT_STREAK_SIZE,
+          sortBy: "createdAt",
         });
 
         if (streak.length === ALERT_STREAK_SIZE) {
@@ -147,7 +155,7 @@ export async function postReading(req, res) {
 
       const thresholdRange = threshMax - threshMin;
       if (thresholdRange > 0) {
-        const averages = await getWindowAverages(deviceId, sensorType, recordedAt);
+        const averages = await getWindowAverages(deviceId, sensorType, alertReferenceAt, "createdAt");
         if (averages) {
           const averageDelta = Math.abs(averages.currentAverage - averages.previousAverage);
           const suddenChangeLimit = thresholdRange * SUDDEN_CHANGE_RANGE_FACTOR;
@@ -184,6 +192,8 @@ export async function getReadings(req, res) {
   if (req.query.offset) filters.offset = Number(req.query.offset);
   if (req.query.from) filters.from = req.query.from;
   if (req.query.to) filters.to = req.query.to;
+  filters.timeField = req.query.timeField ?? "createdAt";
+  filters.sortBy = req.query.sortBy ?? "createdAt";
 
   if (filters.limit !== undefined && (!Number.isInteger(filters.limit) || filters.limit <= 0)) {
     return res.status(400).json({ error: "limit must be a positive integer" });
@@ -195,6 +205,14 @@ export async function getReadings(req, res) {
 
   if (filters.sensorType && !VALID_SENSOR_TYPES.includes(filters.sensorType)) {
     return res.status(400).json({ error: `sensorType must be one of: ${VALID_SENSOR_TYPES.join(", ")}` });
+  }
+
+  if (!VALID_TIME_FIELDS.includes(filters.timeField)) {
+    return res.status(400).json({ error: `timeField must be one of: ${VALID_TIME_FIELDS.join(", ")}` });
+  }
+
+  if (!VALID_TIME_FIELDS.includes(filters.sortBy)) {
+    return res.status(400).json({ error: `sortBy must be one of: ${VALID_TIME_FIELDS.join(", ")}` });
   }
 
   if (!filters.sensorType) {

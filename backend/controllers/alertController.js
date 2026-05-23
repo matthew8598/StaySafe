@@ -140,7 +140,11 @@ export async function listAlertsController(req, res) {
       || isSupportedSensorType(alert.sensorType)
     ));
     if (shouldIncludeOffline) {
-      const [latestReading] = await listReadings({ deviceId: Number(deviceId), limit: 1 });
+      const [latestReading] = await listReadings({
+        deviceId: Number(deviceId),
+        limit: 1,
+        sortBy: "createdAt",
+      });
       const offlineAlert = maybeBuildOfflineAlert(Number(deviceId), latestReading);
       if (offlineAlert) {
         mergedAlerts = [offlineAlert, ...mergedAlerts].sort(

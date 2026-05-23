@@ -9,6 +9,11 @@ const SENSOR_UNITS = {
   light: "lux",
 };
 
+const SORT_COLUMNS = {
+  recordedAt: "recorded_at",
+  createdAt: "created_at",
+};
+
 // Arduino sends { deviceId, temperature|light, timestamp }
 export async function createReading(payload) {
   const { deviceId, timestamp, ...sensorFields } = payload;
@@ -30,6 +35,8 @@ export async function getReadingById(id) {
 export async function listReadings(filters = {}) {
   const conditions = [];
   const values = [];
+  const timeColumn = SORT_COLUMNS[filters.timeField] ?? SORT_COLUMNS.recordedAt;
+  const sortColumn = SORT_COLUMNS[filters.sortBy] ?? SORT_COLUMNS.recordedAt;
 
   if (filters.deviceId) {
     conditions.push("device_id = ?");
@@ -46,12 +53,12 @@ export async function listReadings(filters = {}) {
   }
 
   if (filters.from) {
-    conditions.push("recorded_at >= ?");
+    conditions.push(`${timeColumn} >= ?`);
     values.push(new Date(filters.from));
   }
 
   if (filters.to) {
-    conditions.push("recorded_at <= ?");
+    conditions.push(`${timeColumn} <= ?`);
     values.push(new Date(filters.to));
   }
 
@@ -60,6 +67,7 @@ export async function listReadings(filters = {}) {
     values,
     filters.limit ?? null,
     filters.offset ?? null,
+    sortColumn,
   );
   return rows.map(mapReading);
 }

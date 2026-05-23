@@ -25,6 +25,17 @@ function authHeaders(extra = {}) {
   };
 }
 
+function normalizeReading(row) {
+  const effectiveRecordedAt = row.createdAt || row.recordedAt;
+
+  return {
+    ...row,
+    deviceRecordedAt: row.recordedAt,
+    recordedAt: effectiveRecordedAt,
+    value: parseFloat(row.value),
+  };
+}
+
 async function fetchReadings(params) {
   const qs = new URLSearchParams(params).toString();
   const res = await fetch(`${BASE_URL}/readings?${qs}`, {
@@ -41,9 +52,10 @@ export async function getRecentReadings(sensorType, count = 10, deviceId = DEFAU
     deviceId,
     sensorType,
     limit: count,
+    sortBy: "createdAt",
   });
   // backend returns DESC; reverse to oldest-first for charts
-  return rows.map(r => ({ ...r, value: parseFloat(r.value) })).reverse();
+  return rows.map(normalizeReading).reverse();
 }
 
 export async function getHistoryReadings(
@@ -63,10 +75,11 @@ export async function getAllSensorReadings(limit = 150, deviceId = DEFAULT_DEVIC
     deviceId,
     limit,
     offset,
+    sortBy: "createdAt",
   });
   return rows
     .filter((row) => isSupportedSensorType(row.sensorType))
-    .map(r => ({ ...r, value: parseFloat(r.value) }));
+    .map(normalizeReading);
 }
 
 export async function getReadingsByDateRange(sensorType, from, to, deviceId = DEFAULT_DEVICE_ID) {
@@ -75,9 +88,11 @@ export async function getReadingsByDateRange(sensorType, from, to, deviceId = DE
     sensorType,
     from: new Date(from).toISOString(),
     to: new Date(to).toISOString(),
+    timeField: "createdAt",
+    sortBy: "createdAt",
   });
   // already ordered DESC from backend; reverse to oldest-first for charts
-  return rows.map(r => ({ ...r, value: parseFloat(r.value) })).reverse();
+  return rows.map(normalizeReading).reverse();
 }
 
 // ─── Protection (derived from per-sensor controls) ──────────────────────────
