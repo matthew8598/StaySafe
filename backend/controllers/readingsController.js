@@ -11,6 +11,8 @@ const DEFAULT_THRESHOLDS = {
 };
 
 const ALERT_STREAK_SIZE = 3;
+const AVERAGE_WINDOW_MS = 10_000;
+const SUDDEN_CHANGE_RANGE_FACTOR = 0.2;
 
 function getViolationDirection(value, min, max) {
   if (value < min) return "below";
@@ -18,9 +20,57 @@ function getViolationDirection(value, min, max) {
   return null;
 }
 
+function calculateAverage(values) {
+  return values.reduce((sum, entry) => sum + entry, 0) / values.length;
+}
+
+async function getWindowAverages(deviceId, sensorType, recordedAt) {
+  const currentAtMs = recordedAt.getTime();
+  const currentWindowStartMs = currentAtMs - AVERAGE_WINDOW_MS;
+  const previousWindowStartMs = currentWindowStartMs - AVERAGE_WINDOW_MS;
+
+  const readings = await listReadings({
+    deviceId,
+    sensorType,
+    from: new Date(previousWindowStartMs).toISOString(),
+    to: recordedAt.toISOString(),
+  });
+
+  const previousWindowValues = [];
+  const currentWindowValues = [];
+
+  readings.forEach((entry) => {
+    const entryAtMs = new Date(entry.recordedAt).getTime();
+    const numericValue = Number(entry.value);
+
+    if (!Number.isFinite(entryAtMs) || !Number.isFinite(numericValue)) {
+      return;
+    }
+
+    if (entryAtMs >= currentWindowStartMs) {
+      currentWindowValues.push(numericValue);
+      return;
+    }
+
+    if (entryAtMs >= previousWindowStartMs) {
+      previousWindowValues.push(numericValue);
+    }
+  });
+
+  if (previousWindowValues.length === 0 || currentWindowValues.length === 0) {
+    return null;
+  }
+
+  return {
+    previousAverage: calculateAverage(previousWindowValues),
+    currentAverage: calculateAverage(currentWindowValues),
+  };
+}
+
 export async function postReading(req, res) {
   const { timestamp, ...sensorFields } = req.body;
   const deviceId = Number(req.body.deviceId);
+  const recordedAt = new Date(timestamp);
 
   if (!Number.isFinite(deviceId) || !timestamp) {
     return res.status(400).json({ error: "deviceId and timestamp are required" });
@@ -41,7 +91,7 @@ export async function postReading(req, res) {
     return res.status(400).json({ error: `${sensorType} must be a number` });
   }
 
-  if (isNaN(Date.parse(timestamp))) {
+  if (Number.isNaN(recordedAt.getTime())) {
     return res.status(400).json({ error: "timestamp is not a valid ISO date" });
   }
 
@@ -59,7 +109,7 @@ export async function postReading(req, res) {
     const threshMin = control?.thresholdMin ?? DEFAULT_THRESHOLDS[sensorType]?.min;
     const threshMax = control?.thresholdMax ?? DEFAULT_THRESHOLDS[sensorType]?.max;
 
-    if (threshMin !== undefined && threshMax !== undefined) {
+    if (Number.isFinite(threshMin) && Number.isFinite(threshMax)) {
       const currentDirection = getViolationDirection(value, threshMin, threshMax);
       if (currentDirection) {
         const streak = await listReadings({
@@ -89,6 +139,32 @@ export async function postReading(req, res) {
                 deviceId,
                 sensorType,
                 message: `${sensorType} anomaly: ${ALERT_STREAK_SIZE} consecutive readings ${directionText} threshold (${threshold}). Latest value: ${value}.`,
+              });
+            }
+          }
+        }
+      }
+
+      const thresholdRange = threshMax - threshMin;
+      if (thresholdRange > 0) {
+        const averages = await getWindowAverages(deviceId, sensorType, recordedAt);
+        if (averages) {
+          const averageDelta = Math.abs(averages.currentAverage - averages.previousAverage);
+          const suddenChangeLimit = thresholdRange * SUDDEN_CHANGE_RANGE_FACTOR;
+
+          if (averageDelta >= suddenChangeLimit) {
+            const unresolved = await listAlerts({
+              deviceId,
+              sensorType,
+              isRead: false,
+              limit: 1,
+            });
+
+            if (unresolved.length === 0) {
+              await createAlert({
+                deviceId,
+                sensorType,
+                message: `${sensorType} sudden change: 10s average moved from ${averages.previousAverage.toFixed(2)} to ${averages.currentAverage.toFixed(2)} (delta ${averageDelta.toFixed(2)}), exceeding 20% of threshold range (${suddenChangeLimit.toFixed(2)}).`,
               });
             }
           }
